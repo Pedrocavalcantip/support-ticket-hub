@@ -27,6 +27,10 @@ O Redis foi escolhido por ser adequado para filas em memória, permitindo opera�
 
 O Docker Compose será usado para padronizar a execução do backend e do Redis.
 
+## Como rodar
+
+- [Backend](backend/README.md)
+
 ## Divisão inicial
 - Hugo: fila Redis.
 - Pedro: servidor/API e integração.
