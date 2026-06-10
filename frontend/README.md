@@ -1,0 +1,4 @@
+- Tela de usuário para abrir chamado.
+- Tela de técnico para visualizar a fila.
+- Botão para técnico pegar próximo chamado.
+- Integração com os endpoints definidos em docs/Contrato.md.

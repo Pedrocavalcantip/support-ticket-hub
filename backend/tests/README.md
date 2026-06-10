@@ -1,0 +1,5 @@
+- Verificar se o servidor responde em /health.
+- Testar criação de chamado.
+- Testar listagem da fila.
+- Testar técnico pegando chamado.
+- Testar se dois técnicos não pegam o mesmo chamado.
