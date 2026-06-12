@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support Ticket Hub - Usuario</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f3f6f8;
+      color: #20252b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 32px;
+      background: #f3f6f8;
+    }
+
+    main {
+      width: min(600px, 100%);
+      margin: 0 auto;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      color: #18202a;
+    }
+
+    h1 {
+      margin-bottom: 22px;
+      font-size: 2rem;
+      text-align: center;
+    }
+
+    h2 {
+      font-size: 1.35rem;
+    }
+
+    .panel {
+      border: 1px solid #d7e0e7;
+      border-radius: 8px;
+      padding: 20px;
+      background: #ffffff;
+      box-shadow: 0 8px 22px rgba(31, 45, 61, 0.08);
+    }
+
+    .section-header {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+      color: #2f3a45;
+    }
+
+    input,
+    textarea,
+    button {
+      width: 100%;
+      font: inherit;
+    }
+
+    input,
+    textarea {
+      border: 1px solid #c8d4dd;
+      border-radius: 6px;
+      padding: 11px 12px;
+      color: #17212b;
+      background: #ffffff;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #ffffff;
+      background: #2563eb;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .message {
+      min-height: 22px;
+      margin-top: 12px;
+      font-size: 0.95rem;
+      color: #475569;
+    }
+
+    .message.success {
+      color: #047857;
+    }
+
+    .message.error {
+      color: #b91c1c;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Support Ticket Hub</h1>
+
+    <section class="panel" aria-labelledby="usuario-title">
+      <div class="section-header">
+        <h2 id="usuario-title">&Aacute;rea do Usu&aacute;rio</h2>
+      </div>
+
+      <form id="ticket-form">
+        <div class="field">
+          <label for="usuario">Usu&aacute;rio</label>
+          <input id="usuario" name="usuario" type="text" autocomplete="name" required />
+        </div>
+
+        <div class="field">
+          <label for="descricao">Descri&ccedil;&atilde;o do problema</label>
+          <textarea id="descricao" name="descricao" minlength="5" required></textarea>
+        </div>
+
+        <button id="abrir-ticket" type="submit">Abrir Chamado</button>
+        <p id="usuario-message" class="message" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const API_BASE_URL = "http://127.0.0.1:8000";
+    const CREATE_TICKET_URL = `${API_BASE_URL}/tickets`;
+
+    const ticketForm = document.getElementById("ticket-form");
+    const usuarioInput = document.getElementById("usuario");
+    const descricaoInput = document.getElementById("descricao");
+    const abrirTicketButton = document.getElementById("abrir-ticket");
+    const usuarioMessage = document.getElementById("usuario-message");
+
+    async function abrirChamado(event) {
+      event.preventDefault();
+
+      const usuario = usuarioInput.value.trim();
+      const descricao = descricaoInput.value.trim();
+
+      if (!usuario || descricao.length < 5) {
+        usuarioMessage.textContent = "Informe o usuario e uma descricao com pelo menos 5 caracteres.";
+        usuarioMessage.className = "message error";
+        return;
+      }
+
+      abrirTicketButton.disabled = true;
+      usuarioMessage.textContent = "Abrindo chamado...";
+      usuarioMessage.className = "message";
+
+      try {
+        const response = await fetch(CREATE_TICKET_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ usuario, descricao }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || `Erro HTTP ${response.status}`);
+        }
+
+        const ticketId = data.ticket_id || data.id || "";
+        const ticketLabel = ticketId ? ` ${ticketId.slice(0, 8)}` : "";
+
+        descricaoInput.value = "";
+        usuarioMessage.textContent = `Chamado${ticketLabel} aberto com sucesso.`;
+        usuarioMessage.className = "message success";
+      } catch (error) {
+        usuarioMessage.textContent = error.message;
+        usuarioMessage.className = "message error";
+      } finally {
+        abrirTicketButton.disabled = false;
+      }
+    }
+
+    ticketForm.addEventListener("submit", abrirChamado);
+  </script>
+</body>
+</html>
