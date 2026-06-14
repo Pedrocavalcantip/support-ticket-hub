@@ -365,8 +365,8 @@
     const API_ROUTES = {
       criarTicket: "/tickets",
       listarTickets: "/tickets",
-      pegarProximo: "/tickets/pegar",
-      fecharTicket: (ticketId) => `/tickets/${encodeURIComponent(ticketId)}/fechar`,
+      pegarProximo: "/tickets/next",
+      fecharTicket: (ticketId) => `/tickets/${encodeURIComponent(ticketId)}/close`,
     };
 
     const elements = {
@@ -603,8 +603,8 @@
 
       try {
         const ticket = await apiRequest(API_ROUTES.pegarProximo, {
-          method: "POST",
-          body: JSON.stringify({ tecnico_id: tecnicoId }),
+          method: "PATCH",
+          body: JSON.stringify({ tecnico: tecnicoId }),
         });
 
         salvarChamadoAtual(ticket, tecnicoId);
@@ -637,8 +637,7 @@
         const ticketId = getTicketId(chamadoAtual);
 
         await apiRequest(API_ROUTES.fecharTicket(ticketId), {
-          method: "POST",
-          body: JSON.stringify({ tecnico_id: tecnicoId }),
+          method: "PATCH",
         });
 
         limparChamadoAtual();

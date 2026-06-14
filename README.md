@@ -39,32 +39,53 @@ O Docker Compose será usado para padronizar a execução do backend e do Redis.
 
 ## Estrutura da fila no Redis
 
+A fila é guardada inteiramente no Redis. A ordem de chegada (FIFO) é mantida por uma
+lista, e cada chamado em si fica num hash separado. Além disso temos dois sets que
+funcionam como índice para saber rapidamente quais tickets estão em atendimento ou já
+fechados. Os campos exigidos pelo enunciado (`ticket_id`, `usuario`, `descricao`,
+`status`, `timestamp_abertura`) ficam todos no hash do ticket.
+
 | Chave | Tipo | Função |
 |---|---|---|
-| `tickets:queue` | List | Fila FIFO — ticket_ids em ordem de chegada |
-| `tickets:data:<uuid>` | Hash | Campos do ticket (ticket_id, usuario, descricao, status, timestamp_abertura) |
-| `tickets:status:aberto` | Set | Índice de tickets aguardando atendimento |
-| `tickets:status:em_atendimento` | Set | Índice de tickets sendo atendidos |
-| `tickets:status:fechado` | Set | Índice de tickets encerrados |
+| `tickets:pending` | List | Fila FIFO com os ticket_ids aguardando atendimento, na ordem de chegada |
+| `ticket:<id>` | Hash | Dados do chamado (ticket_id, usuario, descricao, status, timestamp_abertura, etc.) |
+| `tickets:in_progress` | Set | Índice dos chamados que algum técnico já pegou |
+| `tickets:closed` | Set | Índice dos chamados encerrados |
+
+O status de um chamado passa por três valores ao longo da vida dele: `OPEN` (acabou de
+ser aberto e está na fila), `IN_PROGRESS` (um técnico pegou) e `CLOSED` (foi fechado).
 
 ## Perfis e permissões
 
-| Perfil | Operações permitidas |
+Separamos quem pode fazer o quê em dois perfis. O **Usuário** só consegue abrir chamado.
+O **Técnico** é quem consome a fila: pega o próximo da vez e depois fecha. Listar os
+chamados abertos qualquer um pode fazer, já que é só leitura.
+
+| Perfil | O que pode fazer |
 |---|---|
-| **Usuário** | Abrir chamado (`POST /tickets`) |
-| **Técnico** | Pegar chamado (`POST /tickets/pegar`), Fechar chamado (`POST /tickets/{id}/fechar`) |
-| **Qualquer** | Listar tickets (`GET /tickets`), Ver status da fila (`GET /tickets/fila/status`) |
+| Usuário | Abrir chamado (`POST /tickets`) |
+| Técnico | Pegar o próximo da fila (`PATCH /tickets/next`) e fechar um chamado (`PATCH /tickets/{id}/close`) |
+| Qualquer | Listar os chamados abertos (`GET /tickets`) |
 
 ## Estratégia de concorrência
 
-O método `pegar_ticket` usa um **script Lua atômico** executado diretamente no Redis. O Redis garante que nenhuma outra operação ocorre enquanto o script roda, impedindo que dois técnicos retirem o mesmo chamado da fila simultaneamente — mesmo que as requisições cheguem ao mesmo tempo.
+O ponto mais delicado é garantir que dois técnicos não peguem o mesmo chamado ao mesmo
+tempo. Para isso o método `pegar` não faz a retirada em vários passos no Python, e sim
+através de um script Lua que roda dentro do próprio Redis. Enquanto esse script executa,
+o Redis não deixa nenhuma outra operação acontecer, então a sequência "tira o primeiro
+da fila e marca como em atendimento" vira uma coisa indivisível. Mesmo que duas
+requisições cheguem no mesmo instante, uma vai pegar o chamado e a outra vai pegar o
+próximo (ou nenhum, se a fila esvaziar).
 
 ## Endpoints da API
 
 | Método | Rota | Perfil | Descrição |
 |---|---|---|---|
 | POST | `/tickets` | Usuário | Abre um novo chamado |
-| POST | `/tickets/pegar` | Técnico | Pega o próximo chamado da fila |
-| POST | `/tickets/{id}/fechar` | Técnico | Fecha um chamado em atendimento |
-| GET | `/tickets?status=aberto` | Qualquer | Lista tickets por status |
-| GET | `/tickets/fila/status` | Qualquer | Retorna tamanho da fila |
+| GET | `/tickets` | Qualquer | Lista os chamados abertos |
+| PATCH | `/tickets/next` | Técnico | Pega o próximo chamado da fila |
+| PATCH | `/tickets/{id}/close` | Técnico | Fecha um chamado em atendimento |
+
+O detalhamento completo do protocolo (payloads, respostas e códigos de erro) está em
+[docs/Contrato.md](docs/Contrato.md). A visão de arquitetura está em
+[docs/Arquitetura.md](docs/Arquitetura.md).
