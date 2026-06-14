@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support Ticket Hub - Tecnico</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f3f6f8;
+      color: #20252b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 32px;
+      background: #f3f6f8;
+    }
+
+    main {
+      width: min(1000px, 100%);
+      margin: 0 auto;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      color: #18202a;
+    }
+
+    h1 {
+      margin-bottom: 22px;
+      font-size: 2rem;
+      text-align: center;
+    }
+
+    h2 {
+      font-size: 1.35rem;
+    }
+
+    .stack > * + * {
+      margin-top: 16px;
+    }
+
+    .panel {
+      border: 1px solid #d7e0e7;
+      border-radius: 8px;
+      padding: 20px;
+      background: #ffffff;
+      box-shadow: 0 8px 22px rgba(31, 45, 61, 0.08);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+      color: #2f3a45;
+    }
+
+    input,
+    button {
+      width: 100%;
+      font: inherit;
+    }
+
+    input {
+      border: 1px solid #c8d4dd;
+      border-radius: 6px;
+      padding: 11px 12px;
+      color: #17212b;
+      background: #ffffff;
+    }
+
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #ffffff;
+      background: #2563eb;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .secondary-button {
+      width: auto;
+      min-width: 116px;
+      padding: 9px 12px;
+      color: #1f2937;
+      background: #e8eef4;
+    }
+
+    .secondary-button:hover:not(:disabled) {
+      background: #d9e3ec;
+    }
+
+    .danger-button {
+      background: #dc2626;
+    }
+
+    .danger-button:hover:not(:disabled) {
+      background: #b91c1c;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .message {
+      min-height: 22px;
+      margin-top: 12px;
+      font-size: 0.95rem;
+      color: #475569;
+    }
+
+    .message.success {
+      color: #047857;
+    }
+
+    .message.error {
+      color: #b91c1c;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid #d7e0e7;
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      background: #ffffff;
+    }
+
+    th,
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #e6edf2;
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.4;
+    }
+
+    th {
+      background: #eef3f7;
+      color: #364453;
+      font-size: 0.88rem;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .ticket-id {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.88rem;
+      color: #334155;
+      overflow-wrap: anywhere;
+    }
+
+    .description-cell {
+      max-width: 360px;
+      min-width: 220px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #075985;
+      background: #e0f2fe;
+      white-space: nowrap;
+    }
+
+    .current-ticket {
+      border: 1px solid #bfd1e0;
+      border-radius: 8px;
+      padding: 16px;
+      background: #f8fbfd;
+    }
+
+    .attendance-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .attendance-card {
+      border: 1px solid #d7e0e7;
+      border-radius: 8px;
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .attendance-card dl {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px 12px;
+      margin: 0 0 16px;
+    }
+
+    .attendance-card dt {
+      font-weight: 700;
+      color: #3d4b5a;
+    }
+
+    .attendance-card dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .ticket-description {
+      white-space: pre-wrap;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
+    .empty-state {
+      color: #64748b;
+      background: #f8fafc;
+    }
+
+    .queue-count {
+      font-size: 0.95rem;
+      color: #526170;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 18px;
+      }
+
+      .section-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .secondary-button {
+        width: 100%;
+      }
+
+      .attendance-card dl {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Support Ticket Hub</h1>
+
+    <section class="stack" aria-label="Area do Tecnico">
+      <div class="panel">
+        <div class="section-header">
+          <h2>Identifica&ccedil;&atilde;o do T&eacute;cnico</h2>
+        </div>
+
+        <div class="field">
+          <label for="tecnico-id">T&eacute;cnico ID</label>
+          <input id="tecnico-id" name="tecnico-id" type="text" value="tech_01" required />
+        </div>
+
+        <button id="pegar-ticket" type="button">Pegar Pr&oacute;ximo Chamado</button>
+        <p id="tecnico-message" class="message" role="status" aria-live="polite"></p>
+      </div>
+
+      <div class="panel">
+        <div class="section-header">
+          <div>
+            <h2>Fila de Chamados Abertos</h2>
+            <span id="queue-count" class="queue-count">Atualizando...</span>
+          </div>
+          <button id="atualizar-fila" type="button" class="secondary-button">Atualizar</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Usu&aacute;rio</th>
+                <th>Descri&ccedil;&atilde;o</th>
+                <th>Status</th>
+                <th>T&eacute;cnico</th>
+                <th>Abertura</th>
+              </tr>
+            </thead>
+            <tbody id="tickets-body">
+              <tr>
+                <td colspan="6" class="empty-state">Carregando chamados...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section-header">
+          <h2>Chamados em Atendimento</h2>
+        </div>
+
+        <div id="current-ticket" class="current-ticket">
+          <p class="empty-state">Nenhum chamado em atendimento nesta tela.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API_BASE_URL = "http://127.0.0.1:8000";
+    const LEGACY_CURRENT_TICKET_KEY = "support-ticket-hub.current-ticket";
+    const CURRENT_TICKETS_KEY = "support-ticket-hub.current-tickets";
+    const API_ROUTES = {
+      listarTickets: "/tickets",
+      pegarProximo: "/tickets/pegar",
+      fecharTicket: (ticketId) => `/tickets/${encodeURIComponent(ticketId)}/fechar`,
+    };
+
+    const elements = {
+      tecnicoId: document.getElementById("tecnico-id"),
+      pegarTicket: document.getElementById("pegar-ticket"),
+      tecnicoMessage: document.getElementById("tecnico-message"),
+      atualizarFila: document.getElementById("atualizar-fila"),
+      ticketsBody: document.getElementById("tickets-body"),
+      queueCount: document.getElementById("queue-count"),
+      currentTicket: document.getElementById("current-ticket"),
+    };
+
+    let chamadosEmAtendimento = carregarChamadosEmAtendimento();
+
+    const statusLabels = {
+      aberto: "Aberto",
+      em_atendimento: "Em atendimento",
+      fechado: "Fechado",
+      OPEN: "Aberto",
+      IN_PROGRESS: "Em atendimento",
+      CLOSED: "Fechado",
+    };
+
+    function getStatusLabel(status) {
+      return statusLabels[status] || status || "-";
+    }
+
+    function getTecnicoId() {
+      return elements.tecnicoId.value.trim();
+    }
+
+    function getTicketId(ticket) {
+      return ticket.ticket_id || ticket.id || "";
+    }
+
+    function getTicketTecnico(ticket) {
+      return ticket.tecnico || ticket.tecnico_responsavel || "-";
+    }
+
+    function setMessage(element, text, type = "") {
+      element.textContent = text;
+      element.className = type ? `message ${type}` : "message";
+    }
+
+    async function apiRequest(path, options = {}) {
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+      });
+
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : null;
+
+      if (!response.ok) {
+        const message = data && data.detail ? data.detail : `Erro HTTP ${response.status}`;
+        throw new Error(message);
+      }
+
+      return data;
+    }
+
+    function formatDate(value) {
+      if (!value) {
+        return "-";
+      }
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return value;
+      }
+
+      return date.toLocaleString("pt-BR");
+    }
+
+    function shortId(ticketId) {
+      if (!ticketId) {
+        return "-";
+      }
+
+      return ticketId.length > 12 ? `${ticketId.slice(0, 8)}...` : ticketId;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function renderFila(tickets) {
+      elements.queueCount.textContent = `${tickets.length} chamado(s) aguardando`;
+
+      if (!tickets.length) {
+        elements.ticketsBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="empty-state">Nenhum chamado aberto na fila.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      elements.ticketsBody.innerHTML = tickets.map((ticket) => {
+        const ticketId = getTicketId(ticket);
+
+        return `
+          <tr>
+            <td class="ticket-id" title="${escapeHtml(ticketId)}">${shortId(ticketId)}</td>
+            <td>${escapeHtml(ticket.usuario)}</td>
+            <td class="description-cell">${escapeHtml(ticket.descricao)}</td>
+            <td><span class="status-pill">${getStatusLabel(ticket.status)}</span></td>
+            <td>${escapeHtml(getTicketTecnico(ticket))}</td>
+            <td>${formatDate(ticket.timestamp_abertura)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderChamadosEmAtendimento() {
+      if (!chamadosEmAtendimento.length) {
+        elements.currentTicket.innerHTML = `
+          <p class="empty-state">Nenhum chamado em atendimento nesta tela.</p>
+        `;
+        return;
+      }
+
+      elements.currentTicket.innerHTML = `
+        <div class="attendance-list">
+          ${chamadosEmAtendimento.map((ticket) => {
+            const ticketId = getTicketId(ticket);
+
+            return `
+              <article class="attendance-card">
+                <dl>
+                  <dt>ID</dt>
+                  <dd class="ticket-id">${escapeHtml(ticketId)}</dd>
+                  <dt>Usu&aacute;rio</dt>
+                  <dd>${escapeHtml(ticket.usuario)}</dd>
+                  <dt>Descri&ccedil;&atilde;o</dt>
+                  <dd class="ticket-description">${escapeHtml(ticket.descricao)}</dd>
+                  <dt>Status</dt>
+                  <dd><span class="status-pill">${getStatusLabel(ticket.status)}</span></dd>
+                  <dt>T&eacute;cnico</dt>
+                  <dd>${escapeHtml(getTicketTecnico(ticket))}</dd>
+                </dl>
+                <button type="button" class="danger-button fechar-ticket" data-ticket-id="${escapeHtml(ticketId)}">
+                  Fechar Chamado
+                </button>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      `;
+
+      document.querySelectorAll(".fechar-ticket").forEach((button) => {
+        button.addEventListener("click", () => fecharChamado(button.dataset.ticketId, button));
+      });
+    }
+
+    function salvarChamadoEmAtendimento(ticket, tecnicoId) {
+      const ticketNormalizado = {
+        ...ticket,
+        tecnico: ticket.tecnico || ticket.tecnico_responsavel || tecnicoId,
+      };
+      const ticketId = getTicketId(ticketNormalizado);
+      const ticketExistenteIndex = chamadosEmAtendimento.findIndex((item) => getTicketId(item) === ticketId);
+
+      if (ticketExistenteIndex >= 0) {
+        chamadosEmAtendimento[ticketExistenteIndex] = ticketNormalizado;
+      } else {
+        chamadosEmAtendimento.push(ticketNormalizado);
+      }
+
+      salvarChamadosEmAtendimento();
+      renderChamadosEmAtendimento();
+    }
+
+    function removerChamadoEmAtendimento(ticketId) {
+      chamadosEmAtendimento = chamadosEmAtendimento.filter((ticket) => getTicketId(ticket) !== ticketId);
+      salvarChamadosEmAtendimento();
+      renderChamadosEmAtendimento();
+    }
+
+    function salvarChamadosEmAtendimento() {
+      if (!chamadosEmAtendimento.length) {
+        localStorage.removeItem(CURRENT_TICKETS_KEY);
+        return;
+      }
+
+      localStorage.setItem(
+        CURRENT_TICKETS_KEY,
+        JSON.stringify({
+          tickets: chamadosEmAtendimento,
+          tecnicoId: getTecnicoId(),
+        }),
+      );
+    }
+
+    function carregarChamadosEmAtendimento() {
+      try {
+        const raw = localStorage.getItem(CURRENT_TICKETS_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved.tecnicoId) {
+            elements.tecnicoId.value = saved.tecnicoId;
+          }
+
+          return Array.isArray(saved.tickets) ? saved.tickets : [];
+        }
+
+        const legacyRaw = localStorage.getItem(LEGACY_CURRENT_TICKET_KEY);
+        if (!legacyRaw) {
+          return [];
+        }
+
+        const legacySaved = JSON.parse(legacyRaw);
+        if (legacySaved.tecnicoId) {
+          elements.tecnicoId.value = legacySaved.tecnicoId;
+        }
+
+        localStorage.removeItem(LEGACY_CURRENT_TICKET_KEY);
+        return legacySaved.ticket ? [legacySaved.ticket] : [];
+      } catch {
+        localStorage.removeItem(CURRENT_TICKETS_KEY);
+        localStorage.removeItem(LEGACY_CURRENT_TICKET_KEY);
+        return [];
+      }
+    }
+
+    async function carregarFila() {
+      try {
+        const tickets = await apiRequest(API_ROUTES.listarTickets);
+        renderFila(tickets);
+      } catch (error) {
+        elements.queueCount.textContent = "Falha ao atualizar";
+        elements.ticketsBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="empty-state">${escapeHtml(error.message)}</td>
+          </tr>
+        `;
+      }
+    }
+
+    async function pegarProximoChamado() {
+      const tecnicoId = getTecnicoId();
+
+      if (!tecnicoId) {
+        setMessage(elements.tecnicoMessage, "Informe o tecnico ID.", "error");
+        return;
+      }
+
+      elements.pegarTicket.disabled = true;
+      setMessage(elements.tecnicoMessage, "Buscando proximo chamado...");
+
+      try {
+        const ticket = await apiRequest(API_ROUTES.pegarProximo, {
+          method: "POST",
+          body: JSON.stringify({ tecnico_id: tecnicoId }),
+        });
+
+        salvarChamadoEmAtendimento(ticket, tecnicoId);
+        setMessage(elements.tecnicoMessage, `Chamado ${shortId(getTicketId(ticket))} atribuido ao tecnico.`, "success");
+        await carregarFila();
+      } catch (error) {
+        setMessage(elements.tecnicoMessage, error.message, "error");
+      } finally {
+        elements.pegarTicket.disabled = false;
+      }
+    }
+
+    async function fecharChamado(ticketId, fecharButton) {
+      const chamado = chamadosEmAtendimento.find((ticket) => getTicketId(ticket) === ticketId);
+
+      if (!chamado) {
+        setMessage(elements.tecnicoMessage, "Chamado nao encontrado nesta tela.", "error");
+        return;
+      }
+
+      const tecnicoId = getTecnicoId() || getTicketTecnico(chamado);
+      if (!tecnicoId || tecnicoId === "-") {
+        setMessage(elements.tecnicoMessage, "Informe o tecnico ID.", "error");
+        return;
+      }
+
+      fecharButton.disabled = true;
+      setMessage(elements.tecnicoMessage, "Fechando chamado...");
+
+      try {
+        await apiRequest(API_ROUTES.fecharTicket(ticketId), {
+          method: "POST",
+          body: JSON.stringify({ tecnico_id: tecnicoId }),
+        });
+
+        removerChamadoEmAtendimento(ticketId);
+        setMessage(elements.tecnicoMessage, `Chamado ${shortId(ticketId)} fechado com sucesso.`, "success");
+        await carregarFila();
+      } catch (error) {
+        fecharButton.disabled = false;
+        setMessage(elements.tecnicoMessage, error.message, "error");
+      }
+    }
+
+    elements.pegarTicket.addEventListener("click", pegarProximoChamado);
+    elements.atualizarFila.addEventListener("click", carregarFila);
+
+    renderChamadosEmAtendimento();
+    carregarFila();
+    setInterval(carregarFila, 3000);
+  </script>
+</body>
+</html>
