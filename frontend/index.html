@@ -240,6 +240,42 @@
       word-break: break-word;
     }
 
+    .attendance-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .attendance-card {
+      border: 1px solid #d7e0e7;
+      border-radius: 8px;
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .attendance-card dl {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px 12px;
+      margin: 0 0 16px;
+    }
+
+    .attendance-card dt {
+      font-weight: 700;
+      color: #3d4b5a;
+    }
+
+    .attendance-card dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .ticket-description {
+      white-space: pre-wrap;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
     .empty-state {
       color: #64748b;
       background: #f8fafc;
@@ -348,7 +384,7 @@
 
         <div class="panel">
           <div class="section-header">
-            <h2>Chamado em Atendimento</h2>
+            <h2>Chamados em Atendimento</h2>
           </div>
 
           <div id="current-ticket" class="current-ticket">
@@ -361,7 +397,8 @@
 
   <script>
     const API_BASE_URL = "http://127.0.0.1:8000";
-    const CURRENT_TICKET_KEY = "support-ticket-hub.current-ticket";
+    const CURRENT_TICKETS_KEY = "support-ticket-hub.current-tickets";
+    const LEGACY_CURRENT_TICKET_KEY = "support-ticket-hub.current-ticket";
     const API_ROUTES = {
       criarTicket: "/tickets",
       listarTickets: "/tickets",
@@ -384,7 +421,7 @@
       currentTicket: document.getElementById("current-ticket"),
     };
 
-    let chamadoAtual = carregarChamadoAtual();
+    let chamadosEmAtendimento = carregarChamadosEmAtendimento();
 
     const statusLabels = {
       aberto: "Aberto",
@@ -485,64 +522,114 @@
       }).join("");
     }
 
-    function renderChamadoAtual() {
-      if (!chamadoAtual) {
+    function renderChamadosEmAtendimento() {
+      if (!chamadosEmAtendimento.length) {
         elements.currentTicket.innerHTML = `
-          <p id="no-current-ticket" class="empty-state">Nenhum chamado em atendimento nesta tela.</p>
+          <p class="empty-state">Nenhum chamado em atendimento nesta tela.</p>
         `;
         return;
       }
 
       elements.currentTicket.innerHTML = `
-        <dl>
-          <dt>ID</dt>
-          <dd class="ticket-id">${escapeHtml(getTicketId(chamadoAtual))}</dd>
-          <dt>Usuario</dt>
-          <dd>${escapeHtml(chamadoAtual.usuario)}</dd>
-          <dt>Descricao</dt>
-          <dd>${escapeHtml(chamadoAtual.descricao)}</dd>
-          <dt>Status</dt>
-          <dd><span class="status-pill">${getStatusLabel(chamadoAtual.status)}</span></dd>
-          <dt>Tecnico</dt>
-          <dd>${escapeHtml(getTicketTecnico(chamadoAtual))}</dd>
-        </dl>
-        <button id="fechar-ticket" type="button" class="danger-button">Fechar Chamado</button>
+        <div class="attendance-list">
+          ${chamadosEmAtendimento.map((ticket) => {
+            const ticketId = getTicketId(ticket);
+
+            return `
+              <article class="attendance-card">
+                <dl>
+                  <dt>ID</dt>
+                  <dd class="ticket-id">${escapeHtml(ticketId)}</dd>
+                  <dt>Usuario</dt>
+                  <dd>${escapeHtml(ticket.usuario)}</dd>
+                  <dt>Descricao</dt>
+                  <dd class="ticket-description">${escapeHtml(ticket.descricao)}</dd>
+                  <dt>Status</dt>
+                  <dd><span class="status-pill">${getStatusLabel(ticket.status)}</span></dd>
+                  <dt>Tecnico</dt>
+                  <dd>${escapeHtml(getTicketTecnico(ticket))}</dd>
+                </dl>
+                <button type="button" class="danger-button fechar-ticket" data-ticket-id="${escapeHtml(ticketId)}">
+                  Fechar Chamado
+                </button>
+              </article>
+            `;
+          }).join("")}
+        </div>
       `;
 
-      document.getElementById("fechar-ticket").addEventListener("click", fecharChamadoAtual);
+      document.querySelectorAll(".fechar-ticket").forEach((button) => {
+        button.addEventListener("click", () => fecharChamado(button.dataset.ticketId, button));
+      });
     }
 
-    function salvarChamadoAtual(ticket, tecnicoId) {
-      chamadoAtual = {
+    function salvarChamadoEmAtendimento(ticket, tecnicoId) {
+      const ticketNormalizado = {
         ...ticket,
         tecnico: ticket.tecnico || ticket.tecnico_responsavel || tecnicoId,
       };
-      localStorage.setItem(CURRENT_TICKET_KEY, JSON.stringify({ ticket: chamadoAtual, tecnicoId }));
-      renderChamadoAtual();
+      const ticketId = getTicketId(ticketNormalizado);
+      const ticketExistenteIndex = chamadosEmAtendimento.findIndex((item) => getTicketId(item) === ticketId);
+
+      if (ticketExistenteIndex >= 0) {
+        chamadosEmAtendimento[ticketExistenteIndex] = ticketNormalizado;
+      } else {
+        chamadosEmAtendimento.push(ticketNormalizado);
+      }
+
+      salvarChamadosEmAtendimento();
+      renderChamadosEmAtendimento();
     }
 
-    function limparChamadoAtual() {
-      chamadoAtual = null;
-      localStorage.removeItem(CURRENT_TICKET_KEY);
-      renderChamadoAtual();
+    function removerChamadoEmAtendimento(ticketId) {
+      chamadosEmAtendimento = chamadosEmAtendimento.filter((ticket) => getTicketId(ticket) !== ticketId);
+      salvarChamadosEmAtendimento();
+      renderChamadosEmAtendimento();
     }
 
-    function carregarChamadoAtual() {
+    function salvarChamadosEmAtendimento() {
+      if (!chamadosEmAtendimento.length) {
+        localStorage.removeItem(CURRENT_TICKETS_KEY);
+        return;
+      }
+
+      localStorage.setItem(
+        CURRENT_TICKETS_KEY,
+        JSON.stringify({
+          tickets: chamadosEmAtendimento,
+          tecnicoId: getTecnicoId(),
+        }),
+      );
+    }
+
+    function carregarChamadosEmAtendimento() {
       try {
-        const raw = localStorage.getItem(CURRENT_TICKET_KEY);
-        if (!raw) {
-          return null;
+        const raw = localStorage.getItem(CURRENT_TICKETS_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved.tecnicoId) {
+            elements.tecnicoId.value = saved.tecnicoId;
+          }
+
+          return Array.isArray(saved.tickets) ? saved.tickets : [];
         }
 
-        const saved = JSON.parse(raw);
-        if (saved.tecnicoId) {
-          elements.tecnicoId.value = saved.tecnicoId;
+        const legacyRaw = localStorage.getItem(LEGACY_CURRENT_TICKET_KEY);
+        if (!legacyRaw) {
+          return [];
         }
 
-        return saved.ticket || null;
+        const legacySaved = JSON.parse(legacyRaw);
+        if (legacySaved.tecnicoId) {
+          elements.tecnicoId.value = legacySaved.tecnicoId;
+        }
+
+        localStorage.removeItem(LEGACY_CURRENT_TICKET_KEY);
+        return legacySaved.ticket ? [legacySaved.ticket] : [];
       } catch {
-        localStorage.removeItem(CURRENT_TICKET_KEY);
-        return null;
+        localStorage.removeItem(CURRENT_TICKETS_KEY);
+        localStorage.removeItem(LEGACY_CURRENT_TICKET_KEY);
+        return [];
       }
     }
 
@@ -607,7 +694,7 @@
           body: JSON.stringify({ tecnico: tecnicoId }),
         });
 
-        salvarChamadoAtual(ticket, tecnicoId);
+        salvarChamadoEmAtendimento(ticket, tecnicoId);
         setMessage(elements.tecnicoMessage, `Chamado ${shortId(getTicketId(ticket))} atribuido ao tecnico.`, "success");
         await carregarFila();
       } catch (error) {
@@ -617,30 +704,29 @@
       }
     }
 
-    async function fecharChamadoAtual() {
-      if (!chamadoAtual) {
-        setMessage(elements.tecnicoMessage, "Nenhum chamado em atendimento para fechar.", "error");
+    async function fecharChamado(ticketId, fecharButton) {
+      const chamado = chamadosEmAtendimento.find((ticket) => getTicketId(ticket) === ticketId);
+
+      if (!chamado) {
+        setMessage(elements.tecnicoMessage, "Chamado nao encontrado nesta tela.", "error");
         return;
       }
 
-      const tecnicoId = getTecnicoId();
-      if (!tecnicoId) {
+      const tecnicoId = getTecnicoId() || getTicketTecnico(chamado);
+      if (!tecnicoId || tecnicoId === "-") {
         setMessage(elements.tecnicoMessage, "Informe o Tecnico ID.", "error");
         return;
       }
 
-      const fecharButton = document.getElementById("fechar-ticket");
       fecharButton.disabled = true;
       setMessage(elements.tecnicoMessage, "Fechando chamado...");
 
       try {
-        const ticketId = getTicketId(chamadoAtual);
-
         await apiRequest(API_ROUTES.fecharTicket(ticketId), {
           method: "PATCH",
         });
 
-        limparChamadoAtual();
+        removerChamadoEmAtendimento(ticketId);
         setMessage(elements.tecnicoMessage, `Chamado ${shortId(ticketId)} fechado com sucesso.`, "success");
         await carregarFila();
       } catch (error) {
@@ -662,7 +748,7 @@
     elements.pegarTicket.addEventListener("click", pegarProximoChamado);
     elements.atualizarFila.addEventListener("click", carregarFila);
 
-    renderChamadoAtual();
+    renderChamadosEmAtendimento();
     carregarFila();
     setInterval(carregarFila, 3000);
   </script>
