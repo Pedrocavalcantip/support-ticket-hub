@@ -25,6 +25,10 @@ consome. Cada botão dispara uma chamada à API:
 | Pegar o próximo (técnico) | `PATCH /tickets/next` com `{ tecnico }` |
 | Fechar um chamado (técnico) | `PATCH /tickets/{id}/close` |
 
+Antes de enviar um chamado, o frontend valida se o usuário foi preenchido e se a descrição
+tem pelo menos 5 caracteres. No backend, a regra principal do protocolo é recusar campos
+obrigatórios vazios.
+
 O detalhe de cada rota (payload, resposta e erros) está em
 [../docs/Contrato.md](../docs/Contrato.md).
 

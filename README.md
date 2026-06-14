@@ -17,7 +17,8 @@ Redis / RabbitMQ ou equivalente)
 - **FastAPI**: servidor da aplicação e endpoints HTTP.
 - **Redis**: armazenamento da fila de chamados.
 - **Docker Compose**: execução dos serviços.
-- **Frontend Web**: interface para usuários e técnicos.
+- **Frontend Web**: HTML, CSS e JavaScript puro nesta entrega, sem framework, para testar
+  o fluxo de usuário e técnico. Nas próximas entregas pretendemos usar Next.js.
 
 ## Justificativa tecnológica
 
