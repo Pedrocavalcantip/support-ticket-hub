@@ -1,14 +1,30 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-class AbrirTicketRequest(BaseModel):
+
+class TicketCreate(BaseModel):
     usuario: str = Field(..., min_length=1)
-    descricao: str = Field(..., min_length=5)
+    descricao: str = Field(..., min_length=1)
 
-class PegarTicketRequest(BaseModel):
-    tecnico_id: str = Field(..., min_length=1)
+    @field_validator("usuario", "descricao")
+    @classmethod
+    def nao_pode_ser_vazio(cls, valor: str) -> str:
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("campo obrigatorio")
+        return valor
 
-class FecharTicketRequest(BaseModel):
-    tecnico_id: str = Field(..., min_length=1)
+
+class TicketAssign(BaseModel):
+    tecnico: str = Field(..., min_length=1)
+
+    @field_validator("tecnico")
+    @classmethod
+    def tecnico_nao_pode_ser_vazio(cls, valor: str) -> str:
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("tecnico e obrigatorio")
+        return valor
+
 
 class TicketResponse(BaseModel):
     ticket_id: str
@@ -16,9 +32,6 @@ class TicketResponse(BaseModel):
     descricao: str
     status: str
     timestamp_abertura: str
-    tecnico_responsavel: str = ""
+    tecnico: str = ""
     timestamp_atendimento: str = ""
-
-class FilaStatusResponse(BaseModel):
-    tamanho: int
-    mensagem: str
+    timestamp_fechamento: str = ""
