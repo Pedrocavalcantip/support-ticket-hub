@@ -2,6 +2,21 @@
 
 API do projeto **support-ticket-hub**, feita com FastAPI.
 
+## Rodar com Docker (jeito mais facil)
+
+Precisa do Docker e do Docker Compose instalados. Na raiz do projeto:
+
+```bash
+docker compose up --build
+```
+
+Isso sobe o Redis e o backend juntos. A API fica em http://127.0.0.1:8000 e a
+documentacao automatica em http://127.0.0.1:8000/docs. Para parar, use `docker compose down`.
+
+As instrucoes abaixo, com ambiente virtual, sao uma alternativa caso voce nao queira usar
+Docker. Nesse caso voce precisa de um Redis rodando por conta propria, porque a API conecta
+no Redis assim que inicia. Da pra subir so o Redis com `docker compose up -d redis`.
+
 ## Requisitos
 
 - Python 3.12 ou superior
@@ -81,6 +96,22 @@ A documentacao automatica do FastAPI fica em:
 
 ```text
 http://127.0.0.1:8000/docs
+```
+
+## Testes
+
+Os testes ficam em `backend/tests` e usam o pytest. Eles precisam de um Redis acessivel
+(se nao houver nenhum, sao pulados em vez de falhar). Com o stack do Docker no ar:
+
+```bash
+docker compose exec backend pytest -v
+```
+
+Ou localmente, com o ambiente virtual ativado e um Redis rodando:
+
+```bash
+cd backend
+pytest -v
 ```
 
 ## Observacao para VS Code

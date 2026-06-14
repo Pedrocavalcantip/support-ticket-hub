@@ -29,14 +29,32 @@ O Docker Compose será usado para padronizar a execução do backend e do Redis.
 
 ## Como rodar
 
-O backend roda com FastAPI na porta fixa **8000**. O passo a passo (criar o ambiente,
-instalar as dependências e subir o servidor) está em [backend/README.md](backend/README.md).
-Com o servidor no ar dá pra testar em `http://127.0.0.1:8000/health` e ver todos os
-endpoints em `http://127.0.0.1:8000/docs`.
+### Com Docker (mais fácil)
 
-Por enquanto isso é o esqueleto da Entrega 1: o foco é o servidor responder na porta certa
-e a fila enfileirar/desenfileirar. A integração completa com o frontend vem nas próximas
-entregas.
+Com Docker e Docker Compose instalados, na raiz do projeto:
+
+```bash
+docker compose up --build
+```
+
+Isso sobe o Redis e o backend juntos. A API fica na porta fixa **8000**: dá pra testar em
+`http://127.0.0.1:8000/health` e ver todos os endpoints em `http://127.0.0.1:8000/docs`.
+Para parar, use `docker compose down`.
+
+### Sem Docker
+
+Dá pra rodar o backend num ambiente virtual. O passo a passo está em
+[backend/README.md](backend/README.md). Nesse caso é preciso ter um Redis rodando, porque a
+API conecta nele assim que inicia.
+
+### Frontend
+
+As telas são HTML puro, na pasta `frontend/`. Com o backend no ar, abra `frontend/index.html`
+no navegador (ou sirva a pasta com `python -m http.server`). A área do usuário abre chamados e
+a área do técnico pega e fecha os chamados da fila.
+
+Isso aqui é o esqueleto da Entrega 1: servidor respondendo na porta certa, fila enfileirando e
+o frontend já consumindo a API. Os refinamentos vêm nas próximas entregas.
 
 ## Estrutura de pastas
 
