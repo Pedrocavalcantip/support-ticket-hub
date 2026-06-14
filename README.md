@@ -51,7 +51,8 @@ API conecta nele assim que inicia.
 
 As telas são HTML puro, na pasta `frontend/`. Com o backend no ar, abra `frontend/index.html`
 no navegador (ou sirva a pasta com `python -m http.server`). A área do usuário abre chamados e
-a área do técnico pega e fecha os chamados da fila.
+a área do técnico pega e fecha os chamados da fila. Os detalhes de como o frontend está montado
+estão em [frontend/README.md](frontend/README.md).
 
 Isso aqui é o esqueleto da Entrega 1: servidor respondendo na porta certa, fila enfileirando e
 o frontend já consumindo a API. Os refinamentos vêm nas próximas entregas.
