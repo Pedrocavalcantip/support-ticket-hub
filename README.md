@@ -29,13 +29,43 @@ O Docker Compose será usado para padronizar a execução do backend e do Redis.
 
 ## Como rodar
 
-- [Backend](backend/README.md)
+O backend roda com FastAPI na porta fixa **8000**. O passo a passo (criar o ambiente,
+instalar as dependências e subir o servidor) está em [backend/README.md](backend/README.md).
+Com o servidor no ar dá pra testar em `http://127.0.0.1:8000/health` e ver todos os
+endpoints em `http://127.0.0.1:8000/docs`.
 
-## Divisão inicial
-- Hugo: fila Redis.
-- Pedro: servidor/API e integração.
-- Davi: frontend.
-- Coutinho: DevOps, testes e documentação.
+Por enquanto isso é o esqueleto da Entrega 1: o foco é o servidor responder na porta certa
+e a fila enfileirar/desenfileirar. A integração completa com o frontend vem nas próximas
+entregas.
+
+## Estrutura de pastas
+
+```
+support-ticket-hub/
+├── backend/              # API FastAPI + fila no Redis
+│   ├── app/
+│   │   ├── main.py       # sobe o servidor e registra as rotas
+│   │   ├── api/          # rotas HTTP (tickets)
+│   │   ├── schemas/      # validação de entrada/saída (Pydantic)
+│   │   ├── services/     # camada entre as rotas e a fila
+│   │   ├── queue/        # FilaTickets, implementação em cima do Redis
+│   │   ├── core/         # configuração (host/porta do Redis)
+│   │   └── websocket/    # base de WebSocket (uso futuro)
+│   ├── tests/
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/             # telas HTML do usuário e do técnico
+├── docs/                 # Contrato.md (protocolo) e Arquitetura.md
+├── docker-compose.yml
+└── README.md
+```
+
+## Validações básicas
+
+A entrada é validada já na borda da API, pelos schemas do Pydantic em `backend/app/schemas`.
+`usuario` e `descricao` são obrigatórios e não podem ser vazios nem só espaços (passam por
+`strip()`). Se o corpo da requisição vier errado, o servidor responde `422` apontando o campo.
+Além disso, fechar um chamado só funciona se ele estiver em atendimento, senão retorna erro.
 
 ## Estrutura da fila no Redis
 
