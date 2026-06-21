@@ -2,16 +2,16 @@
 
 ## Visão geral
 
-O sistema é dividido em três partes: a interface web, o servidor da aplicação e o Redis,
-que guarda a fila. O fluxo é sempre o mesmo:
+O sistema é dividido entre clientes HTTP, servidor da aplicação e Redis, que guarda a fila.
+O cliente principal da Entrega 2 é o terminal; o frontend é opcional. O fluxo é sempre o mesmo:
 
 ```
-Frontend (HTML/JS)  --HTTP/JSON-->  FastAPI (porta 8000)  -->  ticket_service  -->  FilaTickets  -->  Redis
+Terminal/curl ou frontend  --HTTP/JSON-->  FastAPI  -->  ticket_service  -->  FilaTickets  -->  Redis
 ```
 
-O frontend nunca fala direto com o Redis. Ele só conhece a API HTTP. Quem traduz uma
-requisição em operações na fila é o backend, em camadas: a rota recebe e valida, o
-serviço chama a fila, e a fila mexe no Redis.
+Os clientes nunca falam direto com o Redis. Eles só conhecem a API HTTP. Quem traduz uma
+requisição em operações na fila é o backend, em camadas: a rota recebe e valida, o serviço
+chama a fila, e a fila mexe no Redis.
 
 ## Decisão tecnológica e justificativa
 
@@ -28,6 +28,13 @@ e fila em memória) e é mais direto para o que a equipe já conhece.
   técnicos pegarem o mesmo chamado sem precisar de lock manual no Python.
 - **Docker Compose** para subir backend e Redis juntos, deixando o ambiente igual para
   todo mundo do grupo.
+
+## Concorrência HTTP
+
+A Entrega 2 usa requisições HTTP independentes, sem conexão persistente. As rotas síncronas são
+executadas pelo FastAPI/Starlette em uma thread pool, permitindo atender requisições HTTP
+simultâneas. Cada requisição registra método, rota, IP, status e duração nos logs estruturados.
+O estado compartilhado fica no Redis, e a operação crítica de consumo é protegida pelo Lua.
 
 ## Estado central em memória
 
@@ -62,15 +69,14 @@ backend/app/
   services/      -> camada que liga as rotas a fila
   queue/         -> FilaTickets, a implementacao em cima do Redis
   core/          -> configuracao (host/porta do Redis)
-  websocket/     -> base de WebSocket para atualizacao em tempo real (uso futuro)
 ```
 
-## Relação com o que a Entrega 1 pede
+## Relação com o que a Entrega 2 pede
 
-- Decisão tecnológica documentada: seção acima e o README.
-- Estado central em memória modelado: as estruturas do Redis descritas aqui.
-- Protocolo de comunicação definido: ver [Contrato.md](Contrato.md).
-- Esqueleto do servidor rodando na porta fixada: FastAPI na 8000, com `/health`.
-- Validações básicas de formato: feitas nos schemas (campos obrigatórios, sem string
-  vazia) e reforçadas na fila.
-- Validação de exclusividade: o `pegar` atômico com Lua, explicado acima.
+- Servidor multicliente: FastAPI responde requisições HTTP concorrentes na porta 8000.
+- Comandos no terminal: abertura, consumo e fechamento são acessíveis por `curl`.
+- Estado central em memória: fila e tickets ficam no Redis.
+- Exclusividade: o `pegar` atômico com Lua impede atribuição duplicada.
+- Logs operacionais: requisições e operações são emitidas em JSON no console.
+- Testes: core, API, concorrência e logging são executados com pytest.
+- Protocolo detalhado: ver [Contrato.md](Contrato.md).

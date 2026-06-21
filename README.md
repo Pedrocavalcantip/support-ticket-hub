@@ -17,8 +17,8 @@ Redis / RabbitMQ ou equivalente)
 - **FastAPI**: servidor da aplicação e endpoints HTTP.
 - **Redis**: armazenamento da fila de chamados.
 - **Docker Compose**: execução dos serviços.
-- **Frontend Web**: HTML, CSS e JavaScript puro nesta entrega, sem framework, para testar
-  o fluxo de usuário e técnico. Nas próximas entregas pretendemos usar Next.js.
+- **Frontend Web opcional**: HTML, CSS e JavaScript puro, mantido como apoio visual. A
+  demonstração oficial da Entrega 2 é feita pelo terminal.
 
 ## Justificativa tecnológica
 
@@ -46,29 +46,20 @@ implementar trava na mão. A sugestão do enunciado era BullMQ, que é do mundo 
 (8000) e igual na máquina de todo mundo do grupo. Isso evita o clássico "na minha máquina
 funciona" e ainda facilita rodar os testes dentro do container.
 
-**Frontend em HTML, CSS e JavaScript puro (nesta entrega).** Como esta fase é de arquitetura e
-escopo, o foco é o servidor, o estado e o protocolo; a tela entra como um complemento pra provar
-que o contrato funciona de ponta a ponta. HTML puro não tem etapa de build, abre direto no
-navegador e é rápido de mexer, o que é perfeito pra um esqueleto. Já dá pra exercitar o fluxo
-inteiro (abrir, pegar e fechar chamado) sem montar um projeto de frontend completo.
-
-**Next.js (próximas entregas).** Conforme o sistema crescer, manter a interface em HTML puro vai
-ficando trabalhoso. O Next.js (em cima do React) traz componentização, roteamento e uma forma
-mais organizada de lidar com estado, deixando a tela mais sustentável quando tiver mais fluxos.
-Ele também facilita a atualização em tempo real (por exemplo via WebSocket, que já tem uma base no
-backend) no lugar do polling que usamos agora. E essa troca é tranquila justamente por causa da
-arquitetura: como o backend expõe uma API HTTP/JSON desacoplada da tela, dá pra começar simples
-agora com HTML e migrar pro Next.js depois mexendo só no cliente, sem tocar no servidor.
+**Frontend em HTML, CSS e JavaScript puro.** As telas são um complemento visual e não participam
+da comprovação obrigatória da Entrega 2. Não é necessário um framework de frontend nesta fase:
+os comandos principais são demonstrados por HTTP no terminal, enquanto o backend permanece
+desacoplado de qualquer interface.
 
 ## Arquitetura
 
-O sistema é dividido em três partes: a interface web, o servidor da aplicação e o Redis,
-que guarda o estado. O frontend nunca fala direto com o Redis; ele só conhece a API HTTP.
+O sistema é dividido entre clientes HTTP, servidor da aplicação e Redis. Os clientes podem ser
+comandos `curl` no terminal ou o frontend opcional; nenhum deles acessa o Redis diretamente.
 Quem traduz uma requisição em operações na fila é o backend, organizado em camadas.
 
 ```mermaid
 flowchart LR
-    FE["Frontend<br/>(HTML/CSS/JS)"]
+    CLIENTES["Clientes HTTP<br/>(terminal/curl ou frontend)"]
 
     subgraph servidor["Servidor (porta 8000)"]
         API["API FastAPI<br/>rotas + validacao"]
@@ -78,7 +69,7 @@ flowchart LR
 
     RD[("Redis<br/>estado em memoria")]
 
-    FE -- "HTTP / JSON" --> API
+    CLIENTES -- "HTTP / JSON" --> API
     API --> SVC
     SVC --> FILA
     FILA -- "comandos + script Lua" --> RD
@@ -86,12 +77,13 @@ flowchart LR
 
 ### Elementos
 
-- **Frontend (telas)**: HTML, CSS e JavaScript puro, sem framework. Tem a tela do usuário
-  (abrir chamado) e a do técnico (pegar e fechar chamado, acompanhar a fila). Conversa com a
-  API por HTTP trocando JSON e não acessa o Redis diretamente.
+- **Clientes HTTP**: comandos no terminal são a forma principal de demonstração. As telas em
+  HTML/CSS/JS exercitam o mesmo contrato como complemento opcional.
 - **API FastAPI (porta 8000)**: é a porta de entrada. Recebe as requisições, valida o formato
   com Pydantic, separa os perfis (quais rotas o usuário e o técnico usam) e responde em JSON.
   Sobe na porta fixa 8000, com `/health` para teste e `/docs` com a documentação automática.
+  As funções de rota síncronas são executadas pelo FastAPI/Starlette em uma thread pool, então
+  múltiplas requisições HTTP podem ser atendidas concorrentemente sem conexão persistente.
 - **Camada de serviço (`ticket_service`)**: fica entre as rotas e a fila. As rotas não mexem
   no Redis direto, elas chamam o serviço, que chama a fila. Isso mantém a API desacoplada da
   implementação do armazenamento.
@@ -120,11 +112,14 @@ seções abaixo.
 Com Docker e Docker Compose instalados, na raiz do projeto:
 
 ```bash
+docker compose down --remove-orphans
 docker compose up --build
 ```
 
-Isso sobe o Redis e o backend juntos. A API fica na porta fixa **8000**: dá pra testar em
-`http://127.0.0.1:8000/health` e ver todos os endpoints em `http://127.0.0.1:8000/docs`.
+O primeiro comando é útil para uma validação do zero; ele remove containers e redes anteriores
+do projeto. O segundo constrói e sobe Redis e backend juntos. A API fica na porta fixa **8000**:
+dá pra testar em `http://127.0.0.1:8000/health` e ver todos os endpoints em
+`http://127.0.0.1:8000/docs`.
 Para parar, use `docker compose down`.
 
 ### Sem Docker
@@ -158,6 +153,11 @@ documentação interativa.
 
 ## Entrega 2 — Comunicação e Core
 
+Nesta entrega a comunicação é **HTTP concorrente**, sem conexão persistente. Cada
+requisição representa a interação de um cliente e registra seu IP nos logs. O FastAPI atende
+requisições simultâneas, enquanto o Redis centraliza o estado em memória e o script Lua protege
+a retirada exclusiva dos tickets.
+
 ### Teste de concorrência
 
 Para testar a concorrência com HTTP + Redis, suba o projeto com Docker Compose na raiz do
@@ -167,18 +167,21 @@ repositório:
 docker compose up --build
 ```
 
-Com a API rodando em `http://localhost:8000` e as dependências do backend instaladas, execute o
-teste de carga em outro terminal:
+Com a API rodando, execute o teste de carga em outro terminal. A forma abaixo usa as dependências
+que já estão instaladas no container:
 
 ```bash
-python backend/scripts/load_test.py --base-url http://localhost:8000 --tickets 50 --technicians 10
+docker compose exec backend python scripts/load_test.py \
+  --base-url http://127.0.0.1:8000 \
+  --tickets 50 \
+  --technicians 10
 ```
 
-Exemplo do tipo de saída esperada:
+Resultado real da validação final:
 
 ```text
 === Teste de concorrencia HTTP + Redis ===
-API: http://localhost:8000
+API: http://127.0.0.1:8000
 Tickets solicitados para criacao: 50
 Tecnicos concorrentes: 10
 
@@ -189,7 +192,7 @@ Resumo:
 - Respostas de fila vazia: 10
 - Duplicidade de ticket_id: NAO
 - Tickets abertos ao final (GET /tickets): 0
-- Tempo total de execucao: 0.42s
+- Tempo total de execucao: 0.57s
 
 Status final: SUCESSO
 ```
@@ -233,18 +236,62 @@ O teste de carga da seção anterior gera várias linhas de criação, atribuiç
 requisições concorrentes. Trecho real capturado no console durante a validação com Docker:
 
 ```json
-{"timestamp":"2026-06-21T18:19:10.643600+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_created","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007","usuario":"validacao-logs"}
-{"timestamp":"2026-06-21T18:19:19.287204+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_assigned","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007","tecnico":"tecnico-validacao"}
-{"timestamp":"2026-06-21T18:18:29.597943+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"empty_queue","tecnico":"tecnico-load-002"}
-{"timestamp":"2026-06-21T18:19:29.116837+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"invalid_ticket_close","ticket_id":"ticket-inexistente"}
-{"timestamp":"2026-06-21T18:19:29.218545+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_closed","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007"}
-{"timestamp":"2026-06-21T18:19:29.219032+00:00","level":"INFO","logger":"support_ticket_hub.app.main","event":"http_request","method":"PATCH","route":"/tickets/{ticket_id}/close","client_ip":"172.18.0.1","status_code":200,"duration_ms":1.78}
+{"timestamp":"2026-06-21T21:19:57.278507+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_created","ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","usuario":"usuario-demo"}
+{"timestamp":"2026-06-21T21:20:05.179085+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_assigned","ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","tecnico":"tecnico-demo"}
+{"timestamp":"2026-06-21T21:19:44.254193+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"empty_queue","tecnico":"tecnico-load-008"}
+{"timestamp":"2026-06-21T21:20:10.966333+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_closed","ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b"}
 ```
 
-### Frontend
+### Demonstração via terminal
+
+Os comandos abaixo podem ser executados em Bash ou Git Bash com a API no ar.
+
+1. O usuário abre um chamado:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/tickets \
+  -H "Content-Type: application/json" \
+  -d '{"usuario":"usuario-demo","descricao":"Notebook nao liga"}'
+```
+
+Resposta real (`201 Created`):
+
+```json
+{"ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","usuario":"usuario-demo","descricao":"Notebook nao liga","status":"OPEN","timestamp_abertura":"2026-06-21T21:19:57.277927+00:00","tecnico":"","timestamp_atendimento":"","timestamp_fechamento":""}
+```
+
+2. O técnico consome o próximo chamado da fila:
+
+```bash
+curl -sS -X PATCH http://127.0.0.1:8000/tickets/next \
+  -H "Content-Type: application/json" \
+  -d '{"tecnico":"tecnico-demo"}'
+```
+
+Resposta real (`200 OK`), com o mesmo ticket em atendimento:
+
+```json
+{"ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","usuario":"usuario-demo","descricao":"Notebook nao liga","status":"IN_PROGRESS","timestamp_abertura":"2026-06-21T21:19:57.277927+00:00","tecnico":"tecnico-demo","timestamp_atendimento":"2026-06-21T21:20:05.178560+00:00","timestamp_fechamento":""}
+```
+
+3. O técnico fecha o chamado usando o `ticket_id` retornado:
+
+```bash
+curl -sS -X PATCH \
+  http://127.0.0.1:8000/tickets/c9a37990-2f47-4e54-ba45-18f607db921b/close
+```
+
+Resposta real (`200 OK`):
+
+```json
+{"ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","status":"CLOSED"}
+```
+
+## Frontend opcional
 
 As telas ficam na pasta `frontend/` e são HTML, CSS e JavaScript puro, sem framework e sem
-etapa de build. Com o backend no ar, basta abrir `frontend/index.html` no navegador. Se o
+etapa de build. Elas não são necessárias para avaliar a Entrega 2. Com o backend no ar, basta
+abrir `frontend/index.html` no navegador. Se o
 navegador travar algo por estar abrindo via `file://`, sirva a pasta como site estático:
 
 ```bash
@@ -267,13 +314,10 @@ sozinha a cada 3 segundos (um `GET /tickets` em loop). Os chamados que o técnic
 ficam salvos no `localStorage` do navegador, então recarregar a página não perde o que estava em
 atendimento naquela aba — mas a fonte da verdade é sempre o Redis, no backend.
 
-Isso aqui é o esqueleto da Entrega 1: servidor respondendo na porta certa, fila enfileirando e
-o frontend já consumindo a API. Os refinamentos vêm nas próximas entregas.
+## Demonstração visual opcional
 
-## Demonstração
-
-Os prints abaixo foram tirados com o sistema rodando (backend e Redis no Docker, e o frontend
-servido localmente).
+Os prints abaixo são complementares à demonstração de terminal e foram tirados com backend e
+Redis no Docker e o frontend servido localmente.
 
 ### Tela do usuário — abrir chamado
 
@@ -323,8 +367,7 @@ support-ticket-hub/
 │   │   ├── schemas/      # validação de entrada/saída (Pydantic)
 │   │   ├── services/     # camada entre as rotas e a fila
 │   │   ├── queue/        # FilaTickets, implementação em cima do Redis
-│   │   ├── core/         # configuração (host/porta do Redis)
-│   │   └── websocket/    # base de WebSocket (uso futuro)
+│   │   └── core/         # configuração (host/porta do Redis)
 │   ├── tests/
 │   ├── Dockerfile
 │   └── requirements.txt
@@ -453,22 +496,8 @@ Se o ticket não existir ou não estiver em atendimento, responde `400 Bad Reque
 
 **`GET /health`** — serve só para testar se o servidor está no ar. Responde `{ "status": "ok" }`.
 
-### Exemplo de uso (curl)
-
-```bash
-# usuario abre um chamado
-curl -X POST http://127.0.0.1:8000/tickets \
-  -H "Content-Type: application/json" \
-  -d '{"usuario": "joao", "descricao": "Notebook nao liga"}'
-
-# tecnico pega o proximo da fila
-curl -X PATCH http://127.0.0.1:8000/tickets/next \
-  -H "Content-Type: application/json" \
-  -d '{"tecnico": "maria"}'
-
-# tecnico fecha (use o ticket_id retornado acima)
-curl -X PATCH http://127.0.0.1:8000/tickets/<ticket_id>/close
-```
+Os comandos completos e as respostas capturadas estão na seção
+[Demonstração via terminal](#demonstração-via-terminal).
 
 ### Códigos de resposta
 
@@ -509,5 +538,25 @@ cd backend
 python -m pytest -v
 ```
 
-Na validação com Docker, a suíte completa terminou com `22 passed`. O teste concorrente de
-exclusividade também foi repetido 10 vezes, sempre entregando o ticket para apenas um técnico.
+Resultado real da validação final:
+
+```text
+collected 22 items
+============================== 22 passed in 0.50s ==============================
+```
+
+O teste concorrente de exclusividade também foi repetido 10 vezes, sempre entregando o ticket
+para apenas um técnico.
+
+## Checklist da Entrega 2
+
+- [x] Servidor FastAPI sobe com Docker Compose.
+- [x] Redis sobe saudável e mantém o estado central em memória.
+- [x] Usuário abre chamado pelo terminal.
+- [x] Técnico consome o próximo chamado pelo terminal.
+- [x] Técnico fecha chamado pelo terminal.
+- [x] Fila respeita a ordem FIFO.
+- [x] Dois técnicos não recebem o mesmo chamado.
+- [x] Teste de carga comprova requisições HTTP simultâneas.
+- [x] Logs estruturados aparecem no console.
+- [x] README contém comandos, resultados reais e instruções de execução.

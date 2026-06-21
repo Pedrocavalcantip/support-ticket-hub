@@ -19,7 +19,7 @@ no Redis assim que inicia. Da pra subir so o Redis com `docker compose up -d red
 
 ## Requisitos
 
-- Python 3.12 ou superior
+- Python 3.11 ou superior
 - Git
 
 ## Como rodar no Linux/macOS
