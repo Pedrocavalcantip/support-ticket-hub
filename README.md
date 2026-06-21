@@ -482,10 +482,18 @@ curl -X PATCH http://127.0.0.1:8000/tickets/<ticket_id>/close
 
 ## Testes
 
-Os testes ficam em `backend/tests` e usam o pytest. O `test_fila.py` cobre o enfileiramento
-básico: abrir um chamado coloca ele na fila com os campos exigidos, e a ordem respeitada é a de
-chegada (FIFO). Esses testes precisam de um Redis acessível; se não houver nenhum, são pulados em
-vez de falhar. O `test_logging.py` valida que os logs são JSON e contêm os campos estruturados de
+Os testes ficam em `backend/tests` e usam o pytest. O `test_fila.py` cobre as regras centrais:
+
+- abertura de ticket válido, timestamps ISO 8601 em UTC e rejeição de campos vazios;
+- listagem e consumo em ordem FIFO;
+- atribuição e fechamento com as mudanças de estado esperadas;
+- fila vazia, ticket inexistente e fechamento em estado inválido;
+- rejeição de técnico vazio sem retirar o ticket da fila;
+- exclusividade com dois técnicos concorrendo pelo mesmo ticket;
+- respostas HTTP `404`, `400` e `422` para operações inválidas.
+
+Os testes da fila precisam de um Redis acessível; se não houver nenhum, são pulados em vez de
+falhar. O `test_logging.py` valida que os logs são JSON e contêm os campos estruturados de
 requisição, sem depender do Redis.
 
 Com o stack do Docker no ar:
@@ -500,3 +508,6 @@ Ou localmente, com o ambiente virtual ativado e um Redis rodando:
 cd backend
 python -m pytest -v
 ```
+
+Na validação com Docker, a suíte completa terminou com `22 passed`. O teste concorrente de
+exclusividade também foi repetido 10 vezes, sempre entregando o ticket para apenas um técnico.

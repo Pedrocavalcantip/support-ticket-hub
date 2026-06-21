@@ -25,6 +25,10 @@ OLD_STATUS_MAP = {
 
 
 _LUA_PEGAR = """
+-- O Redis executa todo script Lua de forma atomica: enquanto este bloco roda,
+-- nenhuma outra requisicao pode intercalar comandos entre o LPOP e a mudanca
+-- de status. Assim, um ticket removido por um tecnico nao pode ser entregue a
+-- outro tecnico simultaneamente.
 local pending_key = KEYS[1]
 local in_progress_key = KEYS[2]
 local ticket_prefix = KEYS[3]
@@ -33,15 +37,19 @@ local tecnico = ARGV[1]
 local timestamp = ARGV[2]
 
 while true do
+    -- LPOP retira exatamente o primeiro id da lista, preservando a ordem FIFO.
     local ticket_id = redis.call('LPOP', pending_key)
     if not ticket_id then
         return nil
     end
 
     local ticket_key = ticket_prefix .. ticket_id
+    -- A verificacao ignora ids obsoletos sem interromper o consumo da fila.
     if redis.call('EXISTS', ticket_key) == 1
         and redis.call('HGET', ticket_key, 'status') == 'OPEN' then
 
+        -- A atribuicao e o indice de atendimento sao atualizados antes de o
+        -- script devolver o id, ainda dentro da mesma execucao atomica.
         redis.call('HSET', ticket_key,
             'status', 'IN_PROGRESS',
             'tecnico', tecnico,
@@ -111,11 +119,11 @@ class FilaTickets:
         ]
 
     def pegar(self, tecnico: str) -> dict[str, str] | None:
-        # LPOP + HSET no Lua garantem exclusividade.
+        tecnico_normalizado = self._validar_tecnico(tecnico)
         timestamp = self._agora()
         ticket_id = self._script_pegar(
             keys=[PENDING_KEY, IN_PROGRESS_KEY, TICKET_KEY_PREFIX],
-            args=[tecnico, timestamp],
+            args=[tecnico_normalizado, timestamp],
         )
 
         if ticket_id is None:
@@ -226,6 +234,12 @@ class FilaTickets:
 
         if descricao is None or not str(descricao).strip():
             raise ValueError("descricao e obrigatoria")
+
+    def _validar_tecnico(self, tecnico: Any) -> str:
+        if tecnico is None or not str(tecnico).strip():
+            raise ValueError("tecnico e obrigatorio")
+
+        return str(tecnico).strip()
 
     def _formatar_ticket(self, ticket: dict[str, str]) -> dict[str, str]:
         dados = dict(ticket)
