@@ -156,6 +156,48 @@ uvicorn app.main:app --reload
 O servidor sobe em `http://127.0.0.1:8000`, com `/health` para teste e `/docs` com a
 documentação interativa.
 
+## Entrega 2 — Teste de concorrência
+
+Para testar a concorrência com HTTP + Redis, suba o projeto com Docker Compose na raiz do
+repositório:
+
+```bash
+docker compose up --build
+```
+
+Com a API rodando em `http://localhost:8000` e as dependências do backend instaladas, execute o
+teste de carga em outro terminal:
+
+```bash
+python backend/scripts/load_test.py --base-url http://localhost:8000 --tickets 50 --technicians 10
+```
+
+Exemplo do tipo de saída esperada:
+
+```text
+=== Teste de concorrencia HTTP + Redis ===
+API: http://localhost:8000
+Tickets solicitados para criacao: 50
+Tecnicos concorrentes: 10
+
+Resumo:
+- Tickets criados: 50/50
+- Requisicoes de consumo feitas por tecnicos: 60
+- Tickets atribuidos: 50
+- Respostas de fila vazia: 10
+- Duplicidade de ticket_id: NAO
+- Tickets abertos ao final (GET /tickets): 0
+- Tempo total de execucao: 0.42s
+
+Status final: SUCESSO
+```
+
+O teste cria vários chamados simultaneamente usando `POST /tickets` e depois simula vários
+técnicos consumindo a fila em paralelo com `PATCH /tickets/next`. No final, consulta
+`GET /tickets` e verifica se nenhum `ticket_id` foi entregue para dois técnicos diferentes.
+Se a API não estiver no ar, o script mostra uma mensagem orientando a rodar
+`docker compose up --build`, sem despejar traceback desnecessário.
+
 ### Frontend
 
 As telas ficam na pasta `frontend/` e são HTML, CSS e JavaScript puro, sem framework e sem
