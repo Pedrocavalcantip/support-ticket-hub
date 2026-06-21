@@ -548,15 +548,3 @@ collected 22 items
 O teste concorrente de exclusividade também foi repetido 10 vezes, sempre entregando o ticket
 para apenas um técnico.
 
-## Checklist da Entrega 2
-
-- [x] Servidor FastAPI sobe com Docker Compose.
-- [x] Redis sobe saudável e mantém o estado central em memória.
-- [x] Usuário abre chamado pelo terminal.
-- [x] Técnico consome o próximo chamado pelo terminal.
-- [x] Técnico fecha chamado pelo terminal.
-- [x] Fila respeita a ordem FIFO.
-- [x] Dois técnicos não recebem o mesmo chamado.
-- [x] Teste de carga comprova requisições HTTP simultâneas.
-- [x] Logs estruturados aparecem no console.
-- [x] README contém comandos, resultados reais e instruções de execução.
