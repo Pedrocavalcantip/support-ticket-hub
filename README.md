@@ -156,7 +156,9 @@ uvicorn app.main:app --reload
 O servidor sobe em `http://127.0.0.1:8000`, com `/health` para teste e `/docs` com a
 documentação interativa.
 
-## Entrega 2 — Teste de concorrência
+## Entrega 2 — Comunicação e Core
+
+### Teste de concorrência
 
 Para testar a concorrência com HTTP + Redis, suba o projeto com Docker Compose na raiz do
 repositório:
@@ -197,6 +199,47 @@ técnicos consumindo a fila em paralelo com `PATCH /tickets/next`. No final, con
 `GET /tickets` e verifica se nenhum `ticket_id` foi entregue para dois técnicos diferentes.
 Se a API não estiver no ar, o script mostra uma mensagem orientando a rodar
 `docker compose up --build`, sem despejar traceback desnecessário.
+
+### Logs operacionais
+
+O backend escreve os logs da aplicação no console em formato JSON, com um evento por linha.
+Toda requisição HTTP registra `timestamp`, nível, método, rota, IP do cliente, código de status e
+tempo de resposta em milissegundos. Exceções inesperadas também são registradas com o evento
+`http_request_failed` antes de serem tratadas pelo servidor.
+
+As operações principais da fila geram os seguintes eventos:
+
+| Evento | Nível | Situação |
+|---|---|---|
+| `ticket_created` | `INFO` | usuário abriu e enfileirou um chamado |
+| `ticket_assigned` | `INFO` | técnico retirou o próximo chamado da fila |
+| `ticket_closed` | `INFO` | chamado em atendimento foi fechado |
+| `empty_queue` | `WARNING` | técnico tentou consumir uma fila vazia |
+| `invalid_ticket_close` | `WARNING` | tentativa de fechar ticket inexistente ou fora de atendimento |
+
+Os logs aparecem diretamente no terminal usado para subir a aplicação:
+
+```bash
+docker compose up --build
+```
+
+Também é possível acompanhá-los em outro terminal:
+
+```bash
+docker compose logs -f backend
+```
+
+O teste de carga da seção anterior gera várias linhas de criação, atribuição, fila vazia e
+requisições concorrentes. Trecho real capturado no console durante a validação com Docker:
+
+```json
+{"timestamp":"2026-06-21T18:19:10.643600+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_created","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007","usuario":"validacao-logs"}
+{"timestamp":"2026-06-21T18:19:19.287204+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_assigned","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007","tecnico":"tecnico-validacao"}
+{"timestamp":"2026-06-21T18:18:29.597943+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"empty_queue","tecnico":"tecnico-load-002"}
+{"timestamp":"2026-06-21T18:19:29.116837+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"invalid_ticket_close","ticket_id":"ticket-inexistente"}
+{"timestamp":"2026-06-21T18:19:29.218545+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_closed","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007"}
+{"timestamp":"2026-06-21T18:19:29.219032+00:00","level":"INFO","logger":"support_ticket_hub.app.main","event":"http_request","method":"PATCH","route":"/tickets/{ticket_id}/close","client_ip":"172.18.0.1","status_code":200,"duration_ms":1.78}
+```
 
 ### Frontend
 
@@ -441,18 +484,19 @@ curl -X PATCH http://127.0.0.1:8000/tickets/<ticket_id>/close
 
 Os testes ficam em `backend/tests` e usam o pytest. O `test_fila.py` cobre o enfileiramento
 básico: abrir um chamado coloca ele na fila com os campos exigidos, e a ordem respeitada é a de
-chegada (FIFO). Eles precisam de um Redis acessível; se não houver nenhum, são pulados em vez de
-falhar.
+chegada (FIFO). Esses testes precisam de um Redis acessível; se não houver nenhum, são pulados em
+vez de falhar. O `test_logging.py` valida que os logs são JSON e contêm os campos estruturados de
+requisição, sem depender do Redis.
 
 Com o stack do Docker no ar:
 
 ```bash
-docker compose exec backend pytest -v
+docker compose exec backend python -m pytest -v
 ```
 
 Ou localmente, com o ambiente virtual ativado e um Redis rodando:
 
 ```bash
 cd backend
-pytest -v
+python -m pytest -v
 ```
