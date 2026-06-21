@@ -230,12 +230,15 @@ docker compose logs -f backend
 ```
 
 O teste de carga da seção anterior gera várias linhas de criação, atribuição, fila vazia e
-requisições concorrentes. Exemplo do formato exibido no console:
+requisições concorrentes. Trecho real capturado no console durante a validação com Docker:
 
 ```json
-{"timestamp":"2026-06-21T14:57:52.138247+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_created","ticket_id":"8f3c1b2a-...","usuario":"joao"}
-{"timestamp":"2026-06-21T14:57:52.141497+00:00","level":"INFO","logger":"support_ticket_hub.app.main","event":"http_request","method":"POST","route":"/tickets","client_ip":"172.18.0.1","status_code":201,"duration_ms":3.25}
-{"timestamp":"2026-06-21T14:57:53.019430+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"empty_queue","tecnico":"maria"}
+{"timestamp":"2026-06-21T18:19:10.643600+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_created","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007","usuario":"validacao-logs"}
+{"timestamp":"2026-06-21T18:19:19.287204+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_assigned","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007","tecnico":"tecnico-validacao"}
+{"timestamp":"2026-06-21T18:18:29.597943+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"empty_queue","tecnico":"tecnico-load-002"}
+{"timestamp":"2026-06-21T18:19:29.116837+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"invalid_ticket_close","ticket_id":"ticket-inexistente"}
+{"timestamp":"2026-06-21T18:19:29.218545+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_closed","ticket_id":"4f1d66b8-e5ce-4d6a-9a67-ab585c011007"}
+{"timestamp":"2026-06-21T18:19:29.219032+00:00","level":"INFO","logger":"support_ticket_hub.app.main","event":"http_request","method":"PATCH","route":"/tickets/{ticket_id}/close","client_ip":"172.18.0.1","status_code":200,"duration_ms":1.78}
 ```
 
 ### Frontend
@@ -488,12 +491,12 @@ requisição, sem depender do Redis.
 Com o stack do Docker no ar:
 
 ```bash
-docker compose exec backend pytest -v
+docker compose exec backend python -m pytest -v
 ```
 
 Ou localmente, com o ambiente virtual ativado e um Redis rodando:
 
 ```bash
 cd backend
-pytest -v
+python -m pytest -v
 ```

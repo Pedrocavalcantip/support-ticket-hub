@@ -104,14 +104,14 @@ Os testes ficam em `backend/tests` e usam o pytest. Eles precisam de um Redis ac
 (se nao houver nenhum, sao pulados em vez de falhar). Com o stack do Docker no ar:
 
 ```bash
-docker compose exec backend pytest -v
+docker compose exec backend python -m pytest -v
 ```
 
 Ou localmente, com o ambiente virtual ativado e um Redis rodando:
 
 ```bash
 cd backend
-pytest -v
+python -m pytest -v
 ```
 
 ## Observacao para VS Code
