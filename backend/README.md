@@ -100,8 +100,11 @@ http://127.0.0.1:8000/docs
 
 ## Testes
 
-Os testes ficam em `backend/tests` e usam o pytest. Eles precisam de um Redis acessivel
-(se nao houver nenhum, sao pulados em vez de falhar). Com o stack do Docker no ar:
+Os testes ficam em `backend/tests` e usam o pytest. Os testes do core em `test_fila.py` precisam
+de um Redis acessivel; se nao houver nenhum, sao pulados em vez de falhar. Eles cobrem abertura,
+timestamps, FIFO, consumo, fechamento, entradas invalidas e exclusividade concorrente. O
+`test_api.py` valida as respostas HTTP 404, 400 e 422. O
+`test_logging.py` nao depende do Redis. Com o stack do Docker no ar:
 
 ```bash
 docker compose exec backend python -m pytest -v
