@@ -4,6 +4,13 @@ services:
     container_name: support-ticket-redis
     ports:
       - "6379:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --dir /data
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -21,3 +28,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+
+volumes:
+  redis_data:
