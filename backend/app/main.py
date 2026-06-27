@@ -1,16 +1,27 @@
+import asyncio
+from contextlib import asynccontextmanager
 from time import perf_counter
-
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.api.events import router as events_router
 from app.api.tickets import router as tickets_router
+from app.core.broadcaster import broadcaster
 from app.core.logging_config import get_logger
 
 
 logger = get_logger(__name__)
 
-app = FastAPI(title="Support Ticket Hub")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Registra o event loop para que código síncrono (ticket_service) possa
+    # publicar eventos SSE de forma thread-safe via call_soon_threadsafe.
+    broadcaster._set_loop(asyncio.get_event_loop())
+    yield
+
+
+app = FastAPI(title="Support Ticket Hub", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +70,7 @@ async def log_http_request(request: Request, call_next):
 
 
 app.include_router(tickets_router)
+app.include_router(events_router)
 
 
 @app.get("/health", tags=["health"])
