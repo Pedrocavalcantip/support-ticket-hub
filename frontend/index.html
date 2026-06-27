@@ -287,6 +287,28 @@
       white-space: nowrap;
     }
 
+    /* --- Indicador de conexão SSE --- */
+    .sse-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-left: 10px;
+    }
+
+    .sse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+      flex-shrink: 0;
+      transition: background 0.4s;
+    }
+
+    .sse-dot.connected { background: #16a34a; }
+    .sse-dot.error     { background: #dc2626; }
+
     @media (max-width: 860px) {
       body {
         padding: 18px;
@@ -357,6 +379,10 @@
             <div>
               <h2>Fila de Chamados Abertos</h2>
               <span id="queue-count" class="queue-count">Atualizando...</span>
+              <span class="sse-indicator">
+                <span class="sse-dot" id="sse-dot"></span>
+                <span id="sse-status">Conectando...</span>
+              </span>
             </div>
             <button id="atualizar-fila" type="button" class="secondary-button">Atualizar</button>
           </div>
@@ -419,7 +445,24 @@
       ticketsBody: document.getElementById("tickets-body"),
       queueCount: document.getElementById("queue-count"),
       currentTicket: document.getElementById("current-ticket"),
+      sseDot: document.getElementById("sse-dot"),
+      sseStatus: document.getElementById("sse-status"),
     };
+
+    // ---- SSE ----
+    function setSseStatus(estado) {
+      const labels = { conectando: "Conectando...", ativo: "Ao vivo", erro: "Offline" };
+      elements.sseDot.className = `sse-dot ${{ ativo: "connected", erro: "error" }[estado] ?? ""}`;
+      elements.sseStatus.textContent = labels[estado] ?? estado;
+    }
+
+    function conectarSSE() {
+      setSseStatus("conectando");
+      const es = new EventSource(`${API_BASE_URL}/events`);
+      es.onopen = () => setSseStatus("ativo");
+      es.onmessage = () => carregarFila();
+      es.onerror = () => setSseStatus("erro");
+    }
 
     let chamadosEmAtendimento = carregarChamadosEmAtendimento();
 
@@ -750,7 +793,10 @@
 
     renderChamadosEmAtendimento();
     carregarFila();
-    setInterval(carregarFila, 3000);
+
+    // SSE é o canal principal; setInterval é fallback quando a conexão SSE cair.
+    conectarSSE();
+    setInterval(carregarFila, 10000);
   </script>
 </body>
 </html>
