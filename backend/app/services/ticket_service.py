@@ -23,6 +23,21 @@ def listar_tickets() -> list[dict]:
     return _fila.listar()
 
 
+def listar_por_status(status: str) -> list[dict]:
+    return _fila.listar_tickets(status)
+
+
+def get_stats() -> dict:
+    pending = _fila.listar_tickets("OPEN")
+    in_progress = _fila.listar_tickets("IN_PROGRESS")
+    closed = _fila.listar_tickets("CLOSED")
+    return {
+        "pending": len(pending),
+        "in_progress": len(in_progress),
+        "closed": len(closed),
+    }
+
+
 def pegar_ticket(tecnico: str) -> dict | None:
     ticket = _fila.pegar(tecnico)
     if ticket is None:
