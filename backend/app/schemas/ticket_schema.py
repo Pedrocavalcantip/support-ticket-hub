@@ -35,3 +35,9 @@ class TicketResponse(BaseModel):
     tecnico: str = ""
     timestamp_atendimento: str = ""
     timestamp_fechamento: str = ""
+
+
+class TicketStatsResponse(BaseModel):
+    pending: int
+    in_progress: int
+    closed: int

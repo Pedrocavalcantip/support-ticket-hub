@@ -131,6 +131,12 @@ class FilaTickets:
 
         return self._formatar_ticket(self._redis.hgetall(self._ticket_key(ticket_id)))
 
+    def buscar(self, ticket_id: str) -> dict[str, str] | None:
+        ticket = self._redis.hgetall(self._ticket_key(ticket_id))
+        if not ticket:
+            return None
+        return self._formatar_ticket(ticket)
+
     def fechar(self, ticket_id: str) -> bool:
         ticket_key = self._ticket_key(ticket_id)
         ticket = self._redis.hgetall(ticket_key)

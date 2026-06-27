@@ -260,6 +260,71 @@
       white-space: nowrap;
     }
 
+    /* --- Contadores de status --- */
+    .counters {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .counter-card {
+      border-radius: 8px;
+      padding: 18px 14px;
+      text-align: center;
+      border: 1px solid transparent;
+    }
+
+    .counter-card.pending   { background: #eff6ff; border-color: #bfdbfe; }
+    .counter-card.progress  { background: #fffbeb; border-color: #fde68a; }
+    .counter-card.closed    { background: #f0fdf4; border-color: #bbf7d0; }
+
+    .counter-value {
+      display: block;
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .counter-card.pending  .counter-value { color: #1d4ed8; }
+    .counter-card.progress .counter-value { color: #d97706; }
+    .counter-card.closed   .counter-value { color: #16a34a; }
+
+    .counter-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+    }
+
+    /* --- Indicador de conexão SSE --- */
+    .sse-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #64748b;
+      margin: 0 0 18px;
+    }
+
+    .sse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+      transition: background 0.4s;
+      flex-shrink: 0;
+    }
+
+    .sse-dot.connected { background: #16a34a; }
+    .sse-dot.error     { background: #dc2626; }
+
+    @media (max-width: 720px) {
+      .counters { grid-template-columns: 1fr; }
+    }
+
     @media (max-width: 720px) {
       body {
         padding: 18px;
@@ -282,7 +347,27 @@
 </head>
 <body>
   <main>
-    <h1>Support Ticket Hub</h1>
+    <h1>Support Ticket Hub — Técnico</h1>
+
+    <div class="counters" aria-label="Contadores de chamados">
+      <div class="counter-card pending">
+        <span class="counter-value" id="count-pending">-</span>
+        <span class="counter-label">Pendentes</span>
+      </div>
+      <div class="counter-card progress">
+        <span class="counter-value" id="count-progress">-</span>
+        <span class="counter-label">Em Atendimento</span>
+      </div>
+      <div class="counter-card closed">
+        <span class="counter-value" id="count-closed">-</span>
+        <span class="counter-label">Encerrados</span>
+      </div>
+    </div>
+
+    <p class="sse-indicator">
+      <span class="sse-dot" id="sse-dot"></span>
+      <span id="sse-status">Conectando ao servidor...</span>
+    </p>
 
     <section class="stack" aria-label="Area do Tecnico">
       <div class="panel">
@@ -349,6 +434,7 @@
       listarTickets: "/tickets",
       pegarProximo: "/tickets/next",
       fecharTicket: (ticketId) => `/tickets/${encodeURIComponent(ticketId)}/close`,
+      stats: "/tickets/stats",
     };
 
     const elements = {
@@ -359,7 +445,59 @@
       ticketsBody: document.getElementById("tickets-body"),
       queueCount: document.getElementById("queue-count"),
       currentTicket: document.getElementById("current-ticket"),
+      countPending: document.getElementById("count-pending"),
+      countProgress: document.getElementById("count-progress"),
+      countClosed: document.getElementById("count-closed"),
+      sseDot: document.getElementById("sse-dot"),
+      sseStatus: document.getElementById("sse-status"),
     };
+
+    // ---- Contadores ----
+    function atualizarContadores(stats) {
+      if (!stats) return;
+      elements.countPending.textContent  = stats.pending    ?? "-";
+      elements.countProgress.textContent = stats.in_progress ?? "-";
+      elements.countClosed.textContent   = stats.closed      ?? "-";
+    }
+
+    async function carregarStats() {
+      try {
+        const stats = await apiRequest(API_ROUTES.stats);
+        atualizarContadores(stats);
+      } catch (_) { /* silencioso — os contadores ficam com o último valor */ }
+    }
+
+    // ---- SSE ----
+    function setSseStatus(estado) {
+      const labels = {
+        conectando: "Conectando ao servidor...",
+        ativo:      "Atualizações em tempo real ativas",
+        erro:       "Conexão SSE perdida — atualizando por polling",
+      };
+      elements.sseDot.className = `sse-dot ${{ conectando: "", ativo: "connected", erro: "error" }[estado] ?? ""}`;
+      elements.sseStatus.textContent = labels[estado] ?? estado;
+    }
+
+    function conectarSSE() {
+      setSseStatus("conectando");
+      const es = new EventSource(`${API_BASE_URL}/events`);
+
+      es.onopen = () => setSseStatus("ativo");
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.stats) atualizarContadores(data.stats);
+          // Atualiza a lista da fila sem esperar o próximo intervalo
+          carregarFila();
+        } catch (_) { /* payload malformado — ignora */ }
+      };
+
+      es.onerror = () => {
+        setSseStatus("erro");
+        // O EventSource tenta reconectar sozinho; só fecha após falha definitiva.
+      };
+    }
 
     let chamadosEmAtendimento = carregarChamadosEmAtendimento();
 
@@ -655,11 +793,16 @@
     }
 
     elements.pegarTicket.addEventListener("click", pegarProximoChamado);
-    elements.atualizarFila.addEventListener("click", carregarFila);
+    elements.atualizarFila.addEventListener("click", () => { carregarFila(); carregarStats(); });
 
     renderChamadosEmAtendimento();
     carregarFila();
-    setInterval(carregarFila, 3000);
+    carregarStats();
+
+    // SSE é o canal principal de atualização. O setInterval é fallback para
+    // quando a conexão SSE estiver indisponível.
+    conectarSSE();
+    setInterval(() => { carregarFila(); carregarStats(); }, 10000);
   </script>
 </body>
 </html>
