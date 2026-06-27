@@ -55,3 +55,12 @@ def fechar_ticket(ticket_id: str):
             detail="Ticket inexistente ou nao esta em atendimento.",
         )
     return {"ticket_id": ticket_id, "status": "CLOSED"}
+
+
+@router.get("/{ticket_id}", response_model=TicketResponse)
+def buscar_ticket(ticket_id: str):
+    """Busca um chamado pelo ID, independentemente do status."""
+    ticket = ticket_service.buscar_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Ticket nao encontrado.")
+    return ticket

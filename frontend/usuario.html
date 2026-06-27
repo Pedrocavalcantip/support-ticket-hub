@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Support Ticket Hub - Usuario</title>
+  <title>Support Ticket Hub - Usuário</title>
   <style>
     :root {
       color-scheme: light;
@@ -12,9 +12,7 @@
       color: #20252b;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -24,12 +22,11 @@
     }
 
     main {
-      width: min(600px, 100%);
+      width: min(640px, 100%);
       margin: 0 auto;
     }
 
-    h1,
-    h2 {
+    h1, h2 {
       margin: 0;
       color: #18202a;
     }
@@ -40,9 +37,7 @@
       text-align: center;
     }
 
-    h2 {
-      font-size: 1.35rem;
-    }
+    h2 { font-size: 1.35rem; }
 
     .panel {
       border: 1px solid #d7e0e7;
@@ -52,7 +47,12 @@
       box-shadow: 0 8px 22px rgba(31, 45, 61, 0.08);
     }
 
+    .panel + .panel { margin-top: 18px; }
+
     .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       margin-bottom: 16px;
     }
 
@@ -63,15 +63,12 @@
       color: #2f3a45;
     }
 
-    input,
-    textarea,
-    button {
+    input, textarea, button {
       width: 100%;
       font: inherit;
     }
 
-    input,
-    textarea {
+    input, textarea {
       border: 1px solid #c8d4dd;
       border-radius: 6px;
       padding: 11px 12px;
@@ -105,9 +102,7 @@
       opacity: 0.6;
     }
 
-    .field {
-      margin-bottom: 14px;
-    }
+    .field { margin-bottom: 14px; }
 
     .message {
       min-height: 22px;
@@ -116,18 +111,97 @@
       color: #475569;
     }
 
-    .message.success {
-      color: #047857;
+    .message.success { color: #047857; }
+    .message.error   { color: #b91c1c; }
+
+    /* --- Meus Chamados --- */
+    .chamados-list { display: grid; gap: 10px; }
+
+    .chamado-card {
+      border: 1px solid #d7e0e7;
+      border-left: 4px solid #94a3b8;
+      border-radius: 6px;
+      padding: 14px 16px;
+      background: #ffffff;
     }
 
-    .message.error {
-      color: #b91c1c;
+    .chamado-card.status-OPEN        { border-left-color: #2563eb; }
+    .chamado-card.status-IN_PROGRESS { border-left-color: #d97706; }
+    .chamado-card.status-CLOSED      { border-left-color: #16a34a; }
+
+    .chamado-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .chamado-id {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.82rem;
+      color: #334155;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-pill.OPEN        { color: #075985; background: #e0f2fe; }
+    .status-pill.IN_PROGRESS { color: #92400e; background: #fef3c7; }
+    .status-pill.CLOSED      { color: #065f46; background: #d1fae5; }
+
+    .chamado-descricao {
+      margin: 0 0 6px;
+      font-size: 0.92rem;
+      color: #2f3a45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .chamado-meta {
+      margin: 0;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+
+    /* --- Indicador SSE --- */
+    .sse-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+
+    .sse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+      flex-shrink: 0;
+      transition: background 0.4s;
+    }
+
+    .sse-dot.connected { background: #16a34a; }
+    .sse-dot.error     { background: #dc2626; }
+
+    .empty-state {
+      color: #64748b;
+      font-size: 0.92rem;
+      text-align: center;
+      padding: 12px 0;
+      margin: 0;
     }
 
     @media (max-width: 640px) {
-      body {
-        padding: 18px;
-      }
+      body { padding: 18px; }
     }
   </style>
 </head>
@@ -137,17 +211,17 @@
 
     <section class="panel" aria-labelledby="usuario-title">
       <div class="section-header">
-        <h2 id="usuario-title">&Aacute;rea do Usu&aacute;rio</h2>
+        <h2 id="usuario-title">Área do Usuário</h2>
       </div>
 
       <form id="ticket-form">
         <div class="field">
-          <label for="usuario">Usu&aacute;rio</label>
+          <label for="usuario">Usuário</label>
           <input id="usuario" name="usuario" type="text" autocomplete="name" required />
         </div>
 
         <div class="field">
-          <label for="descricao">Descri&ccedil;&atilde;o do problema</label>
+          <label for="descricao">Descrição do problema</label>
           <textarea id="descricao" name="descricao" minlength="5" required></textarea>
         </div>
 
@@ -155,64 +229,192 @@
         <p id="usuario-message" class="message" role="status" aria-live="polite"></p>
       </form>
     </section>
+
+    <section class="panel" id="meus-chamados-panel" aria-labelledby="meus-chamados-title" hidden>
+      <div class="section-header">
+        <h2 id="meus-chamados-title">Meus Chamados</h2>
+        <span class="sse-indicator">
+          <span class="sse-dot" id="sse-dot"></span>
+          <span id="sse-status">Conectando...</span>
+        </span>
+      </div>
+      <div id="chamados-list" class="chamados-list">
+        <p class="empty-state">Nenhum chamado aberto nesta sessão.</p>
+      </div>
+    </section>
   </main>
 
   <script>
-    const API_BASE_URL = "http://127.0.0.1:8000";
-    const CREATE_TICKET_URL = `${API_BASE_URL}/tickets`;
+    const API_BASE_URL    = "http://127.0.0.1:8000";
+    const MEUS_TICKETS_KEY = "support-ticket-hub.meus-tickets";
 
-    const ticketForm = document.getElementById("ticket-form");
-    const usuarioInput = document.getElementById("usuario");
-    const descricaoInput = document.getElementById("descricao");
+    const ticketForm        = document.getElementById("ticket-form");
+    const usuarioInput      = document.getElementById("usuario");
+    const descricaoInput    = document.getElementById("descricao");
     const abrirTicketButton = document.getElementById("abrir-ticket");
-    const usuarioMessage = document.getElementById("usuario-message");
+    const usuarioMessage    = document.getElementById("usuario-message");
+    const meusChamadosPanel = document.getElementById("meus-chamados-panel");
+    const chamadosList      = document.getElementById("chamados-list");
+    const sseDot            = document.getElementById("sse-dot");
+    const sseStatusEl       = document.getElementById("sse-status");
+
+    // ---- Utilitários ----
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatDate(value) {
+      if (!value) return "-";
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? value : d.toLocaleString("pt-BR");
+    }
+
+    // ---- Persistência local ----
+
+    function carregarMeusTicketIds() {
+      try {
+        return JSON.parse(localStorage.getItem(MEUS_TICKETS_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function salvarMeuTicket(ticketId) {
+      const ids = carregarMeusTicketIds();
+      if (!ids.includes(ticketId)) {
+        ids.push(ticketId);
+        localStorage.setItem(MEUS_TICKETS_KEY, JSON.stringify(ids));
+      }
+    }
+
+    // ---- Fetch individual de ticket ----
+
+    async function buscarTicket(ticketId) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/tickets/${encodeURIComponent(ticketId)}`);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    // ---- Render ----
+
+    const statusLabels = {
+      OPEN: "Aguardando",
+      IN_PROGRESS: "Em Atendimento",
+      CLOSED: "Encerrado",
+    };
+
+    function renderMeusChamados(tickets) {
+      if (!tickets.length) {
+        chamadosList.innerHTML = `<p class="empty-state">Nenhum chamado encontrado.</p>`;
+        return;
+      }
+
+      chamadosList.innerHTML = tickets.map((t) => {
+        if (!t) return "";
+        const status  = t.status || "OPEN";
+        const label   = statusLabels[status] || status;
+        const shortId = t.ticket_id ? `${t.ticket_id.slice(0, 8)}...` : "-";
+        return `
+          <article class="chamado-card status-${escapeHtml(status)}">
+            <div class="chamado-header">
+              <span class="chamado-id" title="${escapeHtml(t.ticket_id)}">${shortId}</span>
+              <span class="status-pill ${escapeHtml(status)}">${escapeHtml(label)}</span>
+            </div>
+            <p class="chamado-descricao">${escapeHtml(t.descricao)}</p>
+            <p class="chamado-meta">Aberto em ${formatDate(t.timestamp_abertura)}</p>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function atualizarMeusChamados() {
+      const ids = carregarMeusTicketIds();
+      if (!ids.length) {
+        meusChamadosPanel.hidden = true;
+        return;
+      }
+      meusChamadosPanel.hidden = false;
+      const tickets = await Promise.all(ids.map(buscarTicket));
+      renderMeusChamados(tickets.filter(Boolean));
+    }
+
+    // ---- SSE ----
+
+    function setSseStatus(estado) {
+      const labels = { conectando: "Conectando...", ativo: "Ao vivo", erro: "Offline" };
+      sseDot.className    = `sse-dot ${{ ativo: "connected", erro: "error" }[estado] ?? ""}`;
+      sseStatusEl.textContent = labels[estado] ?? estado;
+    }
+
+    function conectarSSE() {
+      setSseStatus("conectando");
+      const es = new EventSource(`${API_BASE_URL}/events`);
+      es.onopen    = () => setSseStatus("ativo");
+      es.onmessage = () => atualizarMeusChamados();
+      es.onerror   = () => setSseStatus("erro");
+    }
+
+    // ---- Abrir chamado ----
 
     async function abrirChamado(event) {
       event.preventDefault();
 
-      const usuario = usuarioInput.value.trim();
+      const usuario   = usuarioInput.value.trim();
       const descricao = descricaoInput.value.trim();
 
       if (!usuario || descricao.length < 5) {
-        usuarioMessage.textContent = "Informe o usuario e uma descricao com pelo menos 5 caracteres.";
-        usuarioMessage.className = "message error";
+        usuarioMessage.textContent = "Informe o usuário e uma descrição com pelo menos 5 caracteres.";
+        usuarioMessage.className   = "message error";
         return;
       }
 
       abrirTicketButton.disabled = true;
       usuarioMessage.textContent = "Abrindo chamado...";
-      usuarioMessage.className = "message";
+      usuarioMessage.className   = "message";
 
       try {
-        const response = await fetch(CREATE_TICKET_URL, {
+        const response = await fetch(`${API_BASE_URL}/tickets`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ usuario, descricao }),
         });
 
         const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.detail || `Erro HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(data.detail || `Erro HTTP ${response.status}`);
 
         const ticketId = data.ticket_id || data.id || "";
-        const ticketLabel = ticketId ? ` ${ticketId.slice(0, 8)}` : "";
+        if (ticketId) salvarMeuTicket(ticketId);
 
-        descricaoInput.value = "";
-        usuarioMessage.textContent = `Chamado${ticketLabel} aberto com sucesso.`;
-        usuarioMessage.className = "message success";
+        descricaoInput.value       = "";
+        usuarioMessage.textContent = `Chamado ${ticketId.slice(0, 8)} aberto com sucesso.`;
+        usuarioMessage.className   = "message success";
+
+        await atualizarMeusChamados();
       } catch (error) {
         usuarioMessage.textContent = error.message;
-        usuarioMessage.className = "message error";
+        usuarioMessage.className   = "message error";
       } finally {
         abrirTicketButton.disabled = false;
       }
     }
 
+    // ---- Init ----
     ticketForm.addEventListener("submit", abrirChamado);
+
+    atualizarMeusChamados();
+    conectarSSE();
+    // Fallback polling: atualiza a cada 15 s caso SSE esteja indisponível
+    setInterval(atualizarMeusChamados, 15000);
   </script>
 </body>
 </html>

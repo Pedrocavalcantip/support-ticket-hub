@@ -41,6 +41,10 @@ def get_stats() -> dict:
     return _stats()
 
 
+def buscar_ticket(ticket_id: str) -> dict | None:
+    return _fila.buscar(ticket_id)
+
+
 def pegar_ticket(tecnico: str) -> dict | None:
     ticket = _fila.pegar(tecnico)
     if ticket is None:
