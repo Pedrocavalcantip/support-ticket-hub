@@ -1,5 +1,5 @@
 import asyncio
-from typing import Literal
+from typing import Any
 
 import httpx
 import pytest
