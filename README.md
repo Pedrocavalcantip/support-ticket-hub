@@ -2,7 +2,7 @@
 
 > **Entrega 3 — Interface Gráfica e Concorrência** | Sistemas Distribuídos — CIn UFPE
 
-Sistema distribuído de fila de chamados de suporte técnico.
+Sistema distribuído de fila de chamados de suporte técnico com push em tempo real e concorrência atômica.
 
 ## Enunciado
 
@@ -16,123 +16,79 @@ Redis / RabbitMQ ou equivalente)
 
 ## Tecnologias escolhidas
 
-- **FastAPI**: servidor da aplicação e endpoints HTTP.
-- **Redis**: armazenamento da fila de chamados.
-- **Docker Compose**: execução dos serviços.
-- **Frontend Web em HTML, CSS e JavaScript puro**: na Entrega 3, a interface gráfica é o meio
-  principal de interação com o sistema. Duas telas dedicadas — `usuario.html` e `tecnico.html`
-  — substituem os comandos de terminal como canal de demonstração oficial, com push em tempo
-  real via SSE e contadores de status atualizados automaticamente.
+- **FastAPI**: servidor da aplicação, validação de schemas Pydantic e endpoints HTTP/SSE.
+- **Redis**: armazenamento da fila em memória e execução de scripts Lua atômicos.
+- **Docker Compose**: orquestração e execução isolada dos serviços.
+- **Frontend Web em HTML, CSS e JavaScript puro**: na Entrega 3, a interface gráfica é o canal principal de operação do sistema. Duas telas dedicadas — `usuario.html` e `tecnico.html` — interagem via REST e recebem atualizações instantâneas via Server-Sent Events (SSE), mantendo contadores e listas sincronizados sem recarregar a página.
 
 ## Justificativa tecnológica
 
-A entrega pede um servidor rodando com um framework (não mais socket puro), um estado central
-em memória e validações de formato. Cada escolha abaixo foi pensada pra encaixar nessas peças.
+A arquitetura do projeto foi projetada para atender aos requisitos de sistemas distribuídos unindo simplicidade operacional, tipagem rigorosa e alta tolerância a falhas na concorrência.
 
-**FastAPI.** É um framework web de Python, então já cumpre o "não usar socket puro". A gente
-escolheu ele porque define as rotas de forma enxuta e tipada, e a validação de entrada vem de
-graça junto, pelo Pydantic. Isso atende direto o requisito de validações básicas de formato:
-declarar que `usuario` e `descricao` são obrigatórios já faz o servidor recusar entrada inválida.
-Além disso o FastAPI gera sozinho a documentação interativa (Swagger, em `/docs`), o que ajuda a
-equipe a enxergar e testar o protocolo sem precisar de outra ferramenta. Como o time já trabalha
-com Python, a curva de aprendizado é curta.
+**FastAPI.** Atende à exigência de um servidor robusto sobre protocolo padronizado (substituindo sockets crus). A tipagem nativa integrada ao Pydantic garante validação automática na borda: requisições com campos obrigatórios ausentes ou em branco são rejeitadas com erro HTTP `422` antes de atingir a lógica de negócio. Além disso, o suporte nativo a geradores assíncronos facilita a implementação do streaming de eventos em tempo real (SSE) na rota `/events`, enquanto a documentação Swagger em `/docs` permite testar todos os contratos visualmente.
 
-**Redis.** O ponto central da entrega é guardar o estado em memória, e o Redis é justamente um
-banco em memória, então ele *é* esse estado central. O que pesou bastante é que as estruturas
-dele casam com o nosso modelo sem precisar inventar nada: uma List dá a fila FIFO (`RPUSH` pra
-entrar no fim, `LPOP` pra sair do começo), um Hash guarda os dados de cada chamado e Sets servem
-de índice por status. E o mais importante: ele executa scripts Lua de forma atômica, o que
-resolve a exclusividade exigida (dois técnicos nunca pegam o mesmo chamado) sem a gente ter que
-implementar trava na mão. A sugestão do enunciado era BullMQ, que é do mundo Node; como o backend
-é Python, usar o Redis direto entrega a mesma fila de um jeito mais simples pra nós.
+**Redis.** Funciona como o estado central em memória compartilhado entre todas as requisições. Suas estruturas nativas mapeiam perfeitamente o domínio: uma List (`RPUSH`/`LPOP`) implementa a fila FIFO, Hashes armazenam os metadados dos chamados e Sets indexam os status. O fator decisivo para a escolha do Redis é seu motor de scripts Lua: ele garante que a leitura e a mutação de estado ocorram de forma 100% atômica dentro do servidor, resolvendo o problema de exclusividade (evitando condições de corrida onde dois técnicos pegariam o mesmo ticket) sem travas de software complexas.
 
-**Docker Compose.** Sobe o backend e o Redis juntos com um comando só, sempre na porta fixada
-(8000) e igual na máquina de todo mundo do grupo. Isso evita o clássico "na minha máquina
-funciona" e ainda facilita rodar os testes dentro do container.
+**Docker Compose.** Padroniza o ambiente de execução, subindo a API na porta fixa `8000` e o banco Redis em rede isolada com um único comando, eliminando inconsistências entre as máquinas da equipe.
 
-**Frontend em HTML, CSS e JavaScript puro.** As telas são um complemento visual e não participam
-da comprovação obrigatória da Entrega 2. Não é necessário um framework de frontend nesta fase:
-os comandos principais são demonstrados por HTTP no terminal, enquanto o backend permanece
-desacoplado de qualquer interface.
+**Frontend Vanilla (HTML/CSS/JS puro).** A escolha de não utilizar frameworks pesados de frontend (como React ou Angular) mantém a arquitetura limpa, leve e de fácil auditoria. Através de requisições `fetch` assíncronas e da API nativa `EventSource`, o cliente se conecta ao backend para atualizações em tempo real (SSE) com mínimo consumo de recursos.
 
 ## Arquitetura
 
-O sistema é dividido entre clientes HTTP, servidor da aplicação e Redis. Os clientes podem ser
-comandos `curl` no terminal ou o frontend opcional; nenhum deles acessa o Redis diretamente.
-Quem traduz uma requisição em operações na fila é o backend, organizado em camadas.
+O sistema adota uma arquitetura em camadas desacopladas. O frontend comunica-se via HTTP REST para mutações e escuta um canal SSE unidirecional para propagação de eventos.
 
 ```mermaid
 flowchart LR
-    CLIENTES["Clientes HTTP<br/>(terminal/curl ou frontend)"]
+    CLIENTES["Clientes<br/>(Interfaces Web / curl)"]
 
-    subgraph servidor["Servidor (porta 8000)"]
-        API["API FastAPI<br/>rotas + validacao"]
-        SVC["Servico<br/>ticket_service"]
-        FILA["FilaTickets<br/>regras da fila"]
+    subgraph servidor["Servidor FastAPI (porta 8000)"]
+        API["API REST & SSE<br/>(tickets.py / events.py)"]
+        SVC["Camada de Serviço<br/>(ticket_service.py)"]
+        FILA["FilaTickets<br/>(redis_queue.py)"]
+        BROAD["Broadcaster SSE<br/>(asyncio.Queue)"]
     end
 
-    RD[("Redis<br/>estado em memoria")]
+    RD[("Redis<br/>Estado Central em Memória")]
 
-    CLIENTES -- "HTTP / JSON" --> API
+    CLIENTES -- "HTTP REST / JSON" --> API
     API --> SVC
     SVC --> FILA
-    FILA -- "comandos + script Lua" --> RD
+    FILA -- "Comandos + Script Lua" --> RD
+    SVC -- "Publica eventos" --> BROAD
+    BROAD -- "Stream SSE (/events)" --> CLIENTES
 ```
 
 ### Elementos
 
-- **Clientes HTTP**: comandos no terminal são a forma principal de demonstração. As telas em
-  HTML/CSS/JS exercitam o mesmo contrato como complemento opcional.
-- **API FastAPI (porta 8000)**: é a porta de entrada. Recebe as requisições, valida o formato
-  com Pydantic, separa os perfis (quais rotas o usuário e o técnico usam) e responde em JSON.
-  Sobe na porta fixa 8000, com `/health` para teste e `/docs` com a documentação automática.
-  As funções de rota síncronas são executadas pelo FastAPI/Starlette em uma thread pool, então
-  múltiplas requisições HTTP podem ser atendidas concorrentemente sem conexão persistente.
-- **Camada de serviço (`ticket_service`)**: fica entre as rotas e a fila. As rotas não mexem
-  no Redis direto, elas chamam o serviço, que chama a fila. Isso mantém a API desacoplada da
-  implementação do armazenamento.
-- **Fila (`FilaTickets`, em `queue/redis_queue.py`)**: onde mora a lógica da fila. Faz
-  abrir/listar/pegar/fechar traduzindo para operações no Redis, garante a ordem FIFO e a
-  exclusividade (um chamado nunca vai para dois técnicos) através de um script Lua atômico.
-- **Redis**: o estado central em memória. Guarda a fila numa List, os dados de cada chamado
-  num Hash e índices por status em Sets.
+- **Clientes**: Interfaces web (`usuario.html` e `tecnico.html`) ou clientes de terminal (`curl`).
+- **API FastAPI (porta 8000)**: Recebe requisições, valida payloads via Pydantic e gerencia as rotas REST em `api/tickets.py` e o endpoint de streaming em `api/events.py`. As rotas síncronas rodam em thread pool, garantindo alta vazão.
+- **Camada de Serviço (`ticket_service.py`)**: Intermedia as rotas HTTP e a persistência, aplicando regras de negócio e disparando notificações para o mecanismo de broadcast quando o estado muda.
+- **Fila (`FilaTickets`, em `queue/redis_queue.py`)**: Abstração do Redis que implementa as operações FIFO e executa o script Lua atômico para atribuição exclusiva.
+- **Broadcaster (`core/broadcaster.py`)**: Gerencia o hub de filas assíncronas (`asyncio.Queue`) dos clientes conectados ao SSE. Utiliza `loop.call_soon_threadsafe` para cruzar de forma segura a fronteira entre as threads de trabalho REST e o event loop assíncrono.
+- **Redis**: Armazena as chaves da fila (`tickets:pending`), hashes dos chamados (`ticket:<id>`) e sets de controle (`tickets:in_progress`, `tickets:closed`).
 
-### Fluxo de uma requisição
+### Fluxo de requisição e eventos em tempo real
 
-- **Abrir** (usuário): `POST /tickets` → serviço → `FilaTickets.abrir` → o chamado entra no
-  fim da fila (`RPUSH`) e seus dados vão para um Hash, com status `OPEN`.
-- **Pegar** (técnico): `PATCH /tickets/next` → `FilaTickets.pegar` → um script Lua faz o
-  `LPOP` e marca como `IN_PROGRESS` numa operação só, então dois técnicos nunca pegam o mesmo.
-- **Fechar** (técnico): `PATCH /tickets/{id}/close` → `FilaTickets.fechar` → o chamado vira
-  `CLOSED`.
-
-O detalhamento da fila, dos perfis, do protocolo e da estratégia de concorrência está nas
-seções abaixo.
+- **Abrir Chamado** (Usuário): `POST /tickets` → `ticket_service.abrir()` → `RPUSH` no Redis + `HSET` (status `OPEN`) → Serviço publica evento `ticket_created` no Broadcaster → Broadcaster empurra JSON via SSE (`GET /events`) para todas as abas.
+- **Pegar Chamado** (Técnico): `PATCH /tickets/next` → `ticket_service.pegar()` → Script Lua atômico roda no Redis (`LPOP` + `HSET` status `IN_PROGRESS`) → Serviço publica evento `ticket_assigned` → Broadcaster envia SSE com contadores e dados atualizados.
+- **Fechar Chamado** (Técnico): `PATCH /tickets/{id}/close` → `ticket_service.fechar()` → `HSET` status `CLOSED` + atualização de Sets → Serviço publica evento `ticket_closed` → Clientes SSE atualizam a interface instantaneamente.
 
 ## Como rodar
 
-### Com Docker (mais fácil)
+### Com Docker Compose (Recomendado)
 
-Com Docker e Docker Compose instalados, na raiz do projeto:
+Na raiz do projeto, execute:
 
 ```bash
 docker compose down --remove-orphans
 docker compose up --build
 ```
 
-O primeiro comando é útil para uma validação do zero; ele remove containers e redes anteriores
-do projeto. O segundo constrói e sobe Redis e backend juntos. A API fica na porta fixa **8000**:
-dá pra testar em `http://127.0.0.1:8000/health` e ver todos os endpoints em
-`http://127.0.0.1:8000/docs`.
-Para parar, use `docker compose down`.
+O backend estará disponível na porta fixa **8000** (`http://localhost:8000/docs` para o Swagger UI) e o Redis rodará em segundo plano.
 
-### Sem Docker
+### Sem Docker (Ambiente Virtual Python)
 
-Também dá pra rodar o backend direto, num ambiente virtual. Nesse caso é preciso ter um Redis
-no ar, porque a API conecta nele assim que inicia (a forma mais simples é subir só o Redis com
-`docker compose up -d redis`).
-
-No Linux ou macOS:
+Com uma instância local do Redis rodando (ex: `docker run -d -p 6379:6379 redis`), execute no Linux/macOS:
 
 ```bash
 cd backend
@@ -152,27 +108,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-O servidor sobe em `http://127.0.0.1:8000`, com `/health` para teste e `/docs` com a
-documentação interativa.
-
 ## Entrega 2 — Comunicação e Core
 
-Nesta entrega a comunicação é **HTTP concorrente**, sem conexão persistente. Cada
-requisição representa a interação de um cliente e registra seu IP nos logs. O FastAPI atende
-requisições simultâneas, enquanto o Redis centraliza o estado em memória e o script Lua protege
-a retirada exclusiva dos tickets.
+A base de comunicação assenta em HTTP REST concorrente associada ao registro de auditoria estruturado no console. O FastAPI processa requisições simultâneas em threads isoladas enquanto o Redis garante a integridade transacional das operações da fila.
 
-### Teste de concorrência
+### Teste de carga e concorrência
 
-Para testar a concorrência com HTTP + Redis, suba o projeto com Docker Compose na raiz do
-repositório:
-
-```bash
-docker compose up --build
-```
-
-Com a API rodando, execute o teste de carga em outro terminal. A forma abaixo usa as dependências
-que já estão instaladas no container:
+Para validar a ausência de condições de corrida e duplicação sob alta concorrência, execute o script de estresse dentro do container com a aplicação rodando:
 
 ```bash
 docker compose exec backend python scripts/load_test.py \
@@ -181,161 +123,60 @@ docker compose exec backend python scripts/load_test.py \
   --technicians 10
 ```
 
-Resultado real da validação final:
+O script dispara 50 aberturas simultâneas e 60 tentativas de consumo concorrente em paralelo. O resultado confirmará 50 atribuições únicas, 10 respostas de fila vazia (`404`) e **zero duplicação de IDs**.
 
-```text
-=== Teste de concorrencia HTTP + Redis ===
-API: http://127.0.0.1:8000
-Tickets solicitados para criacao: 50
-Tecnicos concorrentes: 10
+### Logs estruturados operacionais
 
-Resumo:
-- Tickets criados: 50/50
-- Requisicoes de consumo feitas por tecnicos: 60
-- Tickets atribuidos: 50
-- Respostas de fila vazia: 10
-- Duplicidade de ticket_id: NAO
-- Tickets abertos ao final (GET /tickets): 0
-- Tempo total de execucao: 0.57s
+Cada requisição HTTP e evento de negócio emite um log JSON estruturado no stdout, contendo timestamps UTC precisos e contexto de execução:
 
-Status final: SUCESSO
-```
-
-O teste cria vários chamados simultaneamente usando `POST /tickets` e depois simula vários
-técnicos consumindo a fila em paralelo com `PATCH /tickets/next`. No final, consulta
-`GET /tickets` e verifica se nenhum `ticket_id` foi entregue para dois técnicos diferentes.
-Se a API não estiver no ar, o script mostra uma mensagem orientando a rodar
-`docker compose up --build`, sem despejar traceback desnecessário.
-
-### Logs operacionais
-
-O backend escreve os logs da aplicação no console em formato JSON, com um evento por linha.
-Toda requisição HTTP registra `timestamp`, nível, método, rota, IP do cliente, código de status e
-tempo de resposta em milissegundos. Exceções inesperadas também são registradas com o evento
-`http_request_failed` antes de serem tratadas pelo servidor.
-
-As operações principais da fila geram os seguintes eventos:
-
-| Evento | Nível | Situação |
+| Evento | Nível | Descrição |
 |---|---|---|
-| `ticket_created` | `INFO` | usuário abriu e enfileirou um chamado |
-| `ticket_assigned` | `INFO` | técnico retirou o próximo chamado da fila |
-| `ticket_closed` | `INFO` | chamado em atendimento foi fechado |
-| `empty_queue` | `WARNING` | técnico tentou consumir uma fila vazia |
-| `invalid_ticket_close` | `WARNING` | tentativa de fechar ticket inexistente ou fora de atendimento |
+| `ticket_created` | `INFO` | Chamado aberto e enfileirado com sucesso |
+| `ticket_assigned` | `INFO` | Chamado atribuído atomicamente a um técnico |
+| `ticket_closed` | `INFO` | Chamado encerrado pelo suporte |
+| `empty_queue` | `WARNING` | Tentativa de consumo em fila vazia |
+| `invalid_ticket_close` | `WARNING` | Tentativa de fechar chamado inexistente ou fechado |
 
-Os logs aparecem diretamente no terminal usado para subir a aplicação:
-
-```bash
-docker compose up --build
-```
-
-Também é possível acompanhá-los em outro terminal:
+Para acompanhar os logs ao vivo em terminal dedicado:
 
 ```bash
 docker compose logs -f backend
 ```
 
-O teste de carga da seção anterior gera várias linhas de criação, atribuição, fila vazia e
-requisições concorrentes. Trecho real capturado no console durante a validação com Docker:
-
-```json
-{"timestamp":"2026-06-21T21:19:57.278507+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_created","ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","usuario":"usuario-demo"}
-{"timestamp":"2026-06-21T21:20:05.179085+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_assigned","ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","tecnico":"tecnico-demo"}
-{"timestamp":"2026-06-21T21:19:44.254193+00:00","level":"WARNING","logger":"support_ticket_hub.app.services.ticket_service","event":"empty_queue","tecnico":"tecnico-load-008"}
-{"timestamp":"2026-06-21T21:20:10.966333+00:00","level":"INFO","logger":"support_ticket_hub.app.services.ticket_service","event":"ticket_closed","ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b"}
-```
-
-### Demonstração via terminal
-
-Os comandos abaixo podem ser executados em Bash ou Git Bash com a API no ar.
-
-1. O usuário abre um chamado:
-
-```bash
-curl -sS -X POST http://127.0.0.1:8000/tickets \
-  -H "Content-Type: application/json" \
-  -d '{"usuario":"usuario-demo","descricao":"Notebook nao liga"}'
-```
-
-Resposta real (`201 Created`):
-
-```json
-{"ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","usuario":"usuario-demo","descricao":"Notebook nao liga","status":"OPEN","timestamp_abertura":"2026-06-21T21:19:57.277927+00:00","tecnico":"","timestamp_atendimento":"","timestamp_fechamento":""}
-```
-
-2. O técnico consome o próximo chamado da fila:
-
-```bash
-curl -sS -X PATCH http://127.0.0.1:8000/tickets/next \
-  -H "Content-Type: application/json" \
-  -d '{"tecnico":"tecnico-demo"}'
-```
-
-Resposta real (`200 OK`), com o mesmo ticket em atendimento:
-
-```json
-{"ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","usuario":"usuario-demo","descricao":"Notebook nao liga","status":"IN_PROGRESS","timestamp_abertura":"2026-06-21T21:19:57.277927+00:00","tecnico":"tecnico-demo","timestamp_atendimento":"2026-06-21T21:20:05.178560+00:00","timestamp_fechamento":""}
-```
-
-3. O técnico fecha o chamado usando o `ticket_id` retornado:
-
-```bash
-curl -sS -X PATCH \
-  http://127.0.0.1:8000/tickets/c9a37990-2f47-4e54-ba45-18f607db921b/close
-```
-
-Resposta real (`200 OK`):
-
-```json
-{"ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","status":"CLOSED"}
-```
-
 ## Como abrir as interfaces
 
-Na Entrega 3, a **interface gráfica é o meio principal de interação** com o sistema. Desenvolvemos duas interfaces web distintas e separadas para o gerenciamento de chamados:
+Desenvolvemos duas interfaces web dedicadas e responsivas que operam como clientes oficiais do sistema:
 
-- **`usuario.html`**: Destinada ao perfil do Usuário para abrir novos chamados e acompanhar o andamento da fila ao vivo.
-- **`tecnico.html`**: Destinada ao perfil do Técnico para visualizar os chamados abertos na fila, capturar o próximo chamado pendente e fechar os chamados que estão em atendimento.
+- **`usuario.html`**: Portal do cliente para abertura de tickets e acompanhamento visual em tempo real na lista "Meus Chamados".
+- **`tecnico.html`**: Painel operacional com contadores dinâmicos, fila de espera pendente e gestão de chamados em atendimento.
 
-Para rodar e visualizar as interfaces locais no seu navegador, sirva a pasta `frontend` como um site estático executando o comando abaixo no terminal:
+Para servir a interface localmente, execute no terminal a partir da raiz:
 
 ```bash
 cd frontend && python -m http.server 3000
 ```
-Após iniciar o servidor estático, acesse as URLs correspondentes em abas separadas do navegador:
 
-Portal do Cliente: http://localhost:3000/usuario.html
-
-Painel do Técnico: http://localhost:3000/tecnico.html
+Acesse no navegador:
+- Portal do Usuário: `http://localhost:3000/usuario.html`
+- Painel do Técnico: `http://localhost:3000/tecnico.html`
 
 ## Push em tempo real (SSE)
-O sistema utiliza a tecnologia Server-Sent Events (SSE) para estabelecer uma conexão contínua entre o servidor e os clientes conectados:
 
-Atualização Automatizada: Cada vez que um ticket é criado por um usuário, atribuído a um profissional ou encerrado, o servidor FastAPI empurra automaticamente um evento de atualização para todas as interfaces web abertas simultaneamente.
+O streaming de eventos via Server-Sent Events elimina a necessidade de atualizações manuais ou requisições de polling repetitivas:
 
-Indicador de Conexão: O indicador visual verde posicionado ao lado da fila de chamados confirma em tempo real que a comunicação SSE com o backend está ativa e operacional.
-
-Dashboard de Indicadores: Na tela do técnico, os contadores numéricos de chamados Pendentes, Em Atendimento e Encerrados são atualizados de forma instantânea e transparente, eliminando qualquer necessidade de recarregar a página manualmente (zero polling).
+- **Conexão Contínua**: Ao abrir a página, o navegador conecta-se a `http://localhost:8000/events`. Um indicador visual verde confirma que o feed está *Ao vivo*.
+- **Sincronização Instantânea**: Mutações na fila disparam eventos JSON que atualizam imediatamente as tabelas de chamados e os contadores (*Pendentes*, *Em Atendimento*, *Encerrados*) em todas as telas abertas.
 
 ## Simulando dois técnicos disputando o mesmo ticket
-Para testar visualmente o mecanismo de concorrência atômica e a garantia de exclusividade implementada através de scripts Lua no Redis, siga o passo a passo de simulação abaixo:
 
-Abra duas abas distintas do seu navegador, posicionando-as lado a lado, ambas acessando a interface do técnico em http://localhost:3000/tecnico.html.
+Para comprovar a exclusividade atômica (requisito central da disciplina):
 
-Na Aba 1, insira no campo de identificação o ID **tech_01**. Na Aba 2, preencha o campo com o ID **tech_02**.
+1. Abra duas abas lado a lado acessando `http://localhost:3000/tecnico.html`.
+2. Identifique a Aba 1 como **tech_01** e a Aba 2 como **tech_02**.
+3. Em uma terceira aba (`usuario.html`), abra um único chamado. Ele aparecerá instantaneamente nas duas telas dos técnicos via SSE.
+4. Clique em **Pegar Próximo Chamado** em ambas as abas exatamente no mesmo segundo.
 
-Abra uma terceira aba acessando o portal do cliente em http://localhost:3000/usuario.html e crie um novo chamado de suporte. Graças ao Push via SSE, o chamado aparecerá imediatamente nas duas abas abertas dos técnicos.
-
-Clique no botão "Pegar Próximo Chamado" nas duas abas de técnicos exatamente ao mesmo tempo.
-
-**Resultado esperado (passo 5):** O Redis decide atomicamente qual dos dois técnicos recebe o chamado — não importa qual, pois o `LPOP` e o `HSET status=IN_PROGRESS` são executados dentro de um único script Lua, sem nenhuma janela de tempo entre eles. O que você verá nas telas:
-
-- **Aba vencedora**: o chamado aparece imediatamente na seção "Chamados em Atendimento", com o ID do técnico correto e o botão "Fechar Chamado" disponível.
-- **Aba que perdeu**: exibe a mensagem **"Nenhum chamado pendente na fila."** — prova de que o Redis já havia entregado o único ticket existente para o outro técnico antes de processar esta requisição.
-- **Ambas as abas**: os contadores de *Pendentes* e *Em Atendimento* no topo da tela se atualizam automaticamente via SSE, sem qualquer reload de página, confirmando que o estado da fila foi propagado para todos os clientes conectados em tempo real.
-
-Essa demonstração visual é o equivalente gráfico do teste automático `test_dois_tecnicos_nao_recebem_o_mesmo_ticket` que usa `Barrier + ThreadPoolExecutor` para forçar a disputa simultânea.
+**Resultado esperado:** O script Lua atômico no Redis processa apenas a primeira requisição que chegar. A aba vencedora recebe o card em atendimento; a aba perdedora recebe a mensagem de feedback **"Nenhum chamado pendente na fila."** sem gerar inconsistências.
 
 ## Demonstração visual 
 
@@ -375,156 +216,77 @@ Gerada automaticamente pelo FastAPI em `http://localhost:8000/docs`, a interface
 
 ## Estrutura de pastas
 
-```
+```text
 support-ticket-hub/
-├── backend/              # API FastAPI + fila no Redis
+├── backend/                  # Servidor FastAPI + lógica de fila no Redis
 │   ├── app/
-│   │   ├── main.py       # sobe o servidor e registra as rotas
-│   │   ├── api/          # rotas HTTP (tickets.py e o novo events.py para SSE)
-│   │   ├── schemas/      # validação de entrada/saída (Pydantic)
-│   │   ├── services/     # camada entre as rotas e a fila
-│   │   ├── queue/        # FilaTickets, implementação em cima do Redis
-│   │   └── core/         # configuração do sistema e broadcaster.py (mecanismo SSE)
-│   ├── tests/            # testes automatizados da aplicação
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/             # interfaces gráficas em HTML, CSS e JS puro
-├── docs/
-│   ├── img/              # prints das telas do sistema
-│   ├── Contrato.md       # protocolo HTTP e especificações de eventos SSE
-│   └── Arquitetura.md    # documentação técnica das decisões estruturais
-├── docker-compose.yml
-└── README.md             # Instruções de uso e documentação do projeto
+│   │   ├── main.py           # Instanciação da API, CORS e montagem de rotas
+│   │   ├── api/              # Endpoints HTTP REST (tickets.py) e SSE (events.py)
+│   │   ├── core/             # Configurações globais, logs e broadcaster.py
+│   │   ├── queue/            # FilaTickets e script Lua atômico (redis_queue.py)
+│   │   ├── schemas/          # Modelos de validação Pydantic (tickets.py)
+│   │   └── services/         # Regras de negócio intermediárias (ticket_service.py)
+│   ├── tests/                # Suíte completa de 42 testes automatizados
+│   ├── Dockerfile            # Build do container da API
+│   └── requirements.txt      # Dependências Python
+├── frontend/                 # Interfaces web Vanilla (usuario.html, tecnico.html)
+├── docs/                     # Contratos, diagramas e prints de demonstração
+├── docker-compose.yml        # Orquestração dos containers (API + Redis)
+└── README.md                 # Documentação oficial do sistema
 ```
 
 ## Validações básicas
 
-A entrada é validada já na borda da API, pelos schemas do Pydantic em `backend/app/schemas`.
-`usuario` e `descricao` são obrigatórios e não podem ser vazios nem só espaços (passam por
-`strip()`). Se o corpo da requisição vier errado, o servidor responde `422` apontando o campo.
-Além disso, fechar um chamado só funciona se ele estiver em atendimento, senão retorna erro.
+O Pydantic valida os corpos das requisições REST automaticamente. Campos obrigatórios como `usuario` e `descricao` passam por sanitização (`strip()`) e são rejeitados com HTTP `422` se enviados em branco. O fechamento de um ticket via `PATCH /tickets/{id}/close` valida no Redis se o status atual é estritamente `IN_PROGRESS`, retornando HTTP `400` caso contrário.
 
 ## Estrutura da fila no Redis
 
-A fila é guardada inteiramente no Redis. A ordem de chegada (FIFO) é mantida por uma
-lista, e cada chamado em si fica num hash separado. Além disso temos dois sets que
-funcionam como índice para saber rapidamente quais tickets estão em atendimento ou já
-fechados. Os campos exigidos pelo enunciado (`ticket_id`, `usuario`, `descricao`,
-`status`, `timestamp_abertura`) ficam todos no hash do ticket.
+O estado central é persistido exclusivamente em estruturas nativas do Redis:
 
 | Chave | Tipo | Função |
 |---|---|---|
-| `tickets:pending` | List | Fila FIFO com os ticket_ids aguardando atendimento, na ordem de chegada |
-| `ticket:<id>` | Hash | Dados do chamado (ticket_id, usuario, descricao, status, timestamp_abertura, etc.) |
-| `tickets:in_progress` | Set | Índice dos chamados que algum técnico já pegou |
-| `tickets:closed` | Set | Índice dos chamados encerrados |
+| `tickets:pending` | List | Fila FIFO com IDs dos chamados aguardando atendimento |
+| `ticket:<id>` | Hash | Metadados do chamado (usuario, descricao, status, timestamps, tecnico) |
+| `tickets:in_progress` | Set | Índice de chamados atribuídos em atendimento |
+| `tickets:closed` | Set | Índice de chamados finalizados |
 
-O status de um chamado passa por três valores ao longo da vida dele: `OPEN` (acabou de
-ser aberto e está na fila), `IN_PROGRESS` (um técnico pegou) e `CLOSED` (foi fechado).
+Os status evoluem de forma linear: `OPEN` → `IN_PROGRESS` → `CLOSED`.
 
 ## Perfis e permissões
 
-Separamos quem pode fazer o quê em dois perfis. O **Usuário** só consegue abrir chamado.
-O **Técnico** é quem consome a fila: pega o próximo da vez e depois fecha. Listar os
-chamados abertos qualquer um pode fazer, já que é só leitura.
+O desenho das rotas reflete a separação rigorosa de papéis do sistema:
 
-| Perfil | O que pode fazer |
+| Perfil | Ações permitidas | Rotas REST associadas |
+|---|---|---|
+| **Usuário** | Abrir chamados e consultar status | `POST /tickets`, `GET /tickets/{id}` |
+| **Técnico** | Consumir fila e fechar chamados | `PATCH /tickets/next`, `PATCH /tickets/{id}/close` |
+| **Público / UI** | Listagem geral, métricas e feed SSE | `GET /tickets`, `GET /tickets/stats`, `GET /events` |
+
+## Protocolo de comunicação e Rotas
+
+A API REST opera na URL base `http://localhost:8000`. Todas as trocas de dados utilizam payloads JSON devidamente estruturados.
+
+### Rotas disponíveis
+
+- **`POST /tickets`** *(Usuário)*: Cria e enfileira um novo chamado no final da fila (`OPEN`). Retorna `201 Created`.
+- **`GET /tickets`** *(Geral)*: Lista todos os chamados abertos aguardando atendimento. Retorna `200 OK`.
+- **`GET /tickets/stats`** *(Geral)*: Retorna os contadores consolidados em tempo real (`{"pending": X, "in_progress": Y, "closed": Z}`). Retorna `200 OK`.
+- **`GET /tickets/status/{status}`** *(Geral)*: Filtra chamados por status (`OPEN`, `IN_PROGRESS`, `CLOSED`). Retorna `200 OK`.
+- **`GET /tickets/{ticket_id}`** *(Geral)*: Busca os metadados de um chamado específico pelo seu ID único. Retorna `200 OK` ou `404 Not Found`.
+- **`PATCH /tickets/next`** *(Técnico)*: Retira atomicamente o primeiro chamado da fila, atribuindo-o ao técnico (`IN_PROGRESS`). Retorna `200 OK` ou `404 Not Found` (se fila vazia).
+- **`PATCH /tickets/{ticket_id}/close`** *(Técnico)*: Encerra o chamado em atendimento (`CLOSED`). Retorna `200 OK` ou `400 Bad Request`.
+- **`GET /events`** *(Geral / SSE)*: Estabelece stream de conexão persistente Server-Sent Events disparando payloads de atualização em tempo real (`ticket_created`, `ticket_assigned`, `ticket_closed`).
+- **`GET /health`** *(Monitoramento)*: Health check de disponibilidade do serviço. Retorna `200 OK` (`{"status": "ok"}`).
+
+### Resumo dos códigos HTTP
+
+| Situação | Código HTTP |
 |---|---|
-| Usuário | Abrir chamado (`POST /tickets`) |
-| Técnico | Pegar o próximo da fila (`PATCH /tickets/next`) e fechar um chamado (`PATCH /tickets/{id}/close`) |
-| Qualquer | Listar os chamados abertos (`GET /tickets`) |
-
-## Estratégia de concorrência
-
-O ponto mais delicado é garantir que dois técnicos não peguem o mesmo chamado ao mesmo
-tempo. Para isso o método `pegar` não faz a retirada em vários passos no Python, e sim
-através de um script Lua que roda dentro do próprio Redis. Enquanto esse script executa,
-o Redis não deixa nenhuma outra operação acontecer, então a sequência "tira o primeiro
-da fila e marca como em atendimento" vira uma coisa indivisível. Mesmo que duas
-requisições cheguem no mesmo instante, uma vai pegar o chamado e a outra vai pegar o
-próximo (ou nenhum, se a fila esvaziar).
-
-## Protocolo de comunicação
-
-A comunicação é toda por HTTP, trocando JSON nos dois sentidos. O servidor sobe na porta 8000,
-então a base das URLs é `http://127.0.0.1:8000`. A separação de perfis aparece no protocolo: o
-usuário só abre chamado e o técnico consome a fila (pega e fecha).
-
-### Formato do chamado (TicketResponse)
-
-Toda resposta que devolve um chamado usa o mesmo formato:
-
-| Campo | Descrição |
-|---|---|
-| `ticket_id` | identificador único do chamado (gerado pelo servidor) |
-| `usuario` | quem abriu |
-| `descricao` | texto do problema |
-| `status` | `OPEN`, `IN_PROGRESS` ou `CLOSED` |
-| `timestamp_abertura` | data/hora de abertura (ISO 8601, UTC) |
-| `tecnico` | técnico que pegou (vazio enquanto ninguém pegou) |
-| `timestamp_atendimento` | quando o técnico pegou (vazio antes disso) |
-| `timestamp_fechamento` | quando foi fechado (vazio antes disso) |
-
-### Rotas
-
-**`POST /tickets`** — abrir chamado (perfil Usuário)
-
-Corpo: `{ "usuario": "joao", "descricao": "Notebook nao liga" }`
-
-Resposta `201 Created` com o ticket recém-criado (status `OPEN`). Os dois campos são
-obrigatórios; o servidor faz `strip()` e recusa string vazia ou só com espaços (responde `422`
-apontando o campo).
-
-```json
-{
-  "ticket_id": "8f3c1b2a-...",
-  "usuario": "joao",
-  "descricao": "Notebook nao liga",
-  "status": "OPEN",
-  "timestamp_abertura": "2026-06-14T18:20:00+00:00",
-  "tecnico": "",
-  "timestamp_atendimento": "",
-  "timestamp_fechamento": ""
-}
-```
-
-**`GET /tickets`** — listar chamados abertos (qualquer perfil)
-
-Resposta `200 OK` com a lista de chamados em status `OPEN`, na ordem de chegada. Se não houver
-nenhum, devolve `[]`.
-
-**`PATCH /tickets/next`** — pegar o próximo (perfil Técnico)
-
-Corpo: `{ "tecnico": "maria" }`
-
-Pega o primeiro da fila, marca como `IN_PROGRESS` e devolve `200 OK` com o ticket. Se a fila
-estiver vazia, responde `404 Not Found`. Essa é a operação crítica da exclusividade: a retirada é
-atômica no Redis (script Lua), então dois técnicos nunca recebem o mesmo chamado.
-
-**`PATCH /tickets/{ticket_id}/close`** — fechar (perfil Técnico)
-
-Fecha um chamado que está em atendimento. Resposta `200 OK`:
-
-```json
-{ "ticket_id": "8f3c1b2a-...", "status": "CLOSED" }
-```
-
-Se o ticket não existir ou não estiver em atendimento, responde `400 Bad Request`.
-
-**`GET /health`** — serve só para testar se o servidor está no ar. Responde `{ "status": "ok" }`.
-
-Os comandos completos e as respostas capturadas estão na seção
-[Demonstração via terminal](#demonstração-via-terminal).
-
-### Códigos de resposta
-
-| Situação | Código |
-|---|---|
-| Chamado aberto com sucesso | 201 |
-| Listagem, pegar ou fechar com sucesso | 200 |
-| Fila vazia ao tentar pegar o próximo | 404 |
-| Fechar um ticket inexistente ou que não está em atendimento | 400 |
-| Corpo inválido (campo obrigatório faltando ou vazio) | 422 |
+| Chamado aberto com sucesso | `201 Created` |
+| Listagem, consumo ou fechamento bem-sucedido | `200 OK` |
+| Fila vazia ou chamado inexistente | `404 Not Found` |
+| Operação inválida (ex: fechar ticket já encerrado) | `400 Bad Request` |
+| Payload incorreto ou campo obrigatório em branco | `422 Unprocessable Entity` |
 
 ## Testes
 
@@ -558,4 +320,3 @@ collected 42 items
 ```
 
 O teste concorrente de exclusividade atômica também foi repetido sob estresse em múltiplos threads e clientes assíncronos, garantindo 100% de isolamento e zero duplicação de tickets.
-
