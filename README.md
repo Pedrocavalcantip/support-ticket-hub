@@ -342,42 +342,36 @@ Essa demonstração visual é o equivalente gráfico do teste automático `test_
 Os prints abaixo são complementares à demonstração de terminal e foram tirados com backend e
 Redis no Docker e o frontend servido localmente.
 
-### Tela do usuário — abrir chamado
+### Painel do Usuário — abertura e acompanhamento ao vivo
 
-![Tela do usuário](docs/img/01-usuario.png)
+![Painel do Usuário](docs/img/01-usuario.png)
 
-O usuário informa o nome e a descrição do problema e clica em "Abrir Chamado". Isso dispara um
-`POST /tickets` e o chamado entra no fim da fila com status `OPEN`.
+Na interface `usuario.html`, o cliente informa o nome e a descrição do problema para abrir o chamado (`POST /tickets`). A seção inferior **Meus Chamados** lista os tickets solicitados e sincroniza suas mudanças de status instantaneamente (*Aguardando*, *Em atendimento* ou *Encerrado*) através da escuta contínua de eventos SSE emitidos pelo backend, evidenciada pelo indicador verde *Ao vivo*.
 
-### Página única (usuário + técnico)
+### Painel do Técnico — visão inicial e contadores em tempo real
 
-![Página index com a fila](docs/img/02-index-fila.png)
+![Painel do Técnico inicial](docs/img/02-index-fila.png)
 
-A `index.html` junta as duas áreas numa tela só, boa pra testar o fluxo inteiro. A fila de
-chamados abertos, à direita, se atualiza sozinha a cada 3 segundos (`GET /tickets`).
+O painel `tecnico.html` centraliza a operação de suporte apresentando cards numéricos dinâmicos no topo (*Pendentes*, *Em Atendimento* e *Encerrados*) que refletem o estado global da fila no Redis. O indicador verde ao lado do formulário confirma a conexão ativa via Server-Sent Events (SSE). Quando não há chamados, o sistema exibe mensagens de feedback claras na tabela.
 
-### Tela do técnico — fila de chamados
+### Painel do Técnico — fila de chamados pendentes
 
-![Tela do técnico com a fila](docs/img/03-tecnico-fila.png)
+![Painel do Técnico com fila](docs/img/03-tecnico-fila.png)
 
-O técnico vê os chamados em ordem de chegada. Ao clicar em "Pegar Próximo Chamado", o primeiro
-da fila é atribuído a ele através de `PATCH /tickets/next`.
+Quando novos chamados são abertos, eles surgem instantaneamente na tabela **Fila de Chamados Abertos** em ordem cronológica de chegada (FIFO), incrementando o contador de *Pendentes*. Ao clicar no botão azul **Pegar Próximo Chamado**, o servidor executa o script Lua atômico no Redis (`PATCH /tickets/next`), garantindo a exclusividade da atribuição.
 
-### Tela do técnico — chamados em atendimento
+### Painel do Técnico — atendimento exclusivo e encerramento
 
 ![Chamados em atendimento](docs/img/05-tecnico-atendimento.png)
 
-Cada chamado que o técnico pega vira um card próprio, com seu botão "Fechar Chamado"
-(`PATCH /tickets/{id}/close`). Dá pra ter vários em atendimento ao mesmo tempo, refletindo o
-que o backend permite (vários `IN_PROGRESS`).
+Após a atribuição bem-sucedida, o chamado sai da fila geral e vira um card exclusivo na seção **Chamados em Atendimento**, associado ao ID do profissional. Ao concluir o suporte, o clique no botão vermelho **Fechar Chamado** (`PATCH /tickets/{id}/close`) encerra o ciclo, atualizando os contadores em todas as telas conectadas sem recarregar a página.
 
-### Documentação automática da API (Swagger)
+### Documentação automática da API (Swagger UI)
 
 ![Swagger em /docs](docs/img/04-swagger.png)
 
-O FastAPI gera essa documentação interativa em `http://127.0.0.1:8000/docs`. Ela lista todos os
-endpoints e os schemas de entrada e saída (`TicketCreate`, `TicketAssign`, `TicketResponse`) e
-ainda dá pra testar as rotas direto por ali.
+Gerada automaticamente pelo FastAPI em `http://localhost:8000/docs`, a interface interativa lista todos os endpoints REST (`/tickets`, `/events`, `/health`) e seus esquemas de dados Pydantic (`TicketCreate`, `TicketAssign`, `TicketResponse`), permitindo testar diretamente o protocolo e verificar as respostas HTTP.
+
 
 ## Estrutura de pastas
 
