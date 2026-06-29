@@ -348,17 +348,17 @@ Redis no Docker e o frontend servido localmente.
 
 Na interface `usuario.html`, o cliente informa o nome e a descrição do problema para abrir o chamado (`POST /tickets`). A seção inferior **Meus Chamados** lista os tickets solicitados e sincroniza suas mudanças de status instantaneamente (*Aguardando*, *Em atendimento* ou *Encerrado*) através da escuta contínua de eventos SSE emitidos pelo backend, evidenciada pelo indicador verde *Ao vivo*.
 
-### Painel do Técnico — visão inicial e contadores em tempo real
-
-![Painel do Técnico inicial](docs/img/02-index-fila.png)
-
-O painel `tecnico.html` centraliza a operação de suporte apresentando cards numéricos dinâmicos no topo (*Pendentes*, *Em Atendimento* e *Encerrados*) que refletem o estado global da fila no Redis. O indicador verde ao lado do formulário confirma a conexão ativa via Server-Sent Events (SSE). Quando não há chamados, o sistema exibe mensagens de feedback claras na tabela.
-
 ### Painel do Técnico — fila de chamados pendentes
 
 ![Painel do Técnico com fila](docs/img/03-tecnico-fila.png)
 
 Quando novos chamados são abertos, eles surgem instantaneamente na tabela **Fila de Chamados Abertos** em ordem cronológica de chegada (FIFO), incrementando o contador de *Pendentes*. Ao clicar no botão azul **Pegar Próximo Chamado**, o servidor executa o script Lua atômico no Redis (`PATCH /tickets/next`), garantindo a exclusividade da atribuição.
+
+### Painel do Técnico — visão inicial e contadores em tempo real
+
+![Painel do Técnico inicial](docs/img/02-index-fila.png)
+
+O painel `tecnico.html` centraliza a operação de suporte apresentando cards numéricos dinâmicos no topo (*Pendentes*, *Em Atendimento* e *Encerrados*) que refletem o estado global da fila no Redis. O indicador verde ao lado do formulário confirma a conexão ativa via Server-Sent Events (SSE). Quando não há chamados, o sistema exibe mensagens de feedback claras na tabela.
 
 ### Painel do Técnico — atendimento exclusivo e encerramento
 
@@ -528,19 +528,14 @@ Os comandos completos e as respostas capturadas estão na seção
 
 ## Testes
 
-Os testes ficam em `backend/tests` e usam o pytest. O `test_fila.py` cobre as regras centrais:
+A suíte automatizada fica em `backend/tests` e utiliza o `pytest` com `pytest-asyncio` para validar a aplicação de ponta a ponta em 42 cenários:
 
-- abertura de ticket válido, timestamps ISO 8601 em UTC e rejeição de campos vazios;
-- listagem e consumo em ordem FIFO;
-- atribuição e fechamento com as mudanças de estado esperadas;
-- fila vazia, ticket inexistente e fechamento em estado inválido;
-- rejeição de técnico vazio sem retirar o ticket da fila;
-- exclusividade com dois técnicos concorrendo pelo mesmo ticket;
-- respostas HTTP `404`, `400` e `422` para operações inválidas.
+- **`test_fila.py` (Regras de Negócio e Concorrência):** valida abertura com timestamps ISO 8601 em UTC, rejeição de campos vazios, ordem de consumo FIFO, transições de estado (`OPEN` → `IN_PROGRESS` → `CLOSED`), retornos para fila vazia ou chamados inexistentes e exclusividade atômica (testada sob estresse com `threading.Barrier` e `ThreadPoolExecutor`).
+- **`test_api.py` (Endpoints e Contratos HTTP):** cobre todas as rotas REST (`/tickets`, `/tickets/next`, `/tickets/{id}/close`, `/tickets/stats`, `/tickets/status/{status}`), validando schemas Pydantic, códigos de retorno (`200`, `201`, `400`, `404`, `422`), fluxos E2E e disputas concorrentes simuladas com clientes assíncronos (`AsyncClient`).
+- **`test_sse.py` (Push em Tempo Real):** testa o gerador de eventos (`_event_generator`), o envio de comentários de `keepalive` para evitar timeout e garante que o `broadcaster` publica os payloads corretos (`ticket_created`, `ticket_assigned`, `ticket_closed`) após cada alteração no Redis.
+- **`test_logging.py` (Observabilidade):** valida que os logs estruturados são emitidos em formato JSON rigoroso com todos os campos de auditoria de requisição HTTP e operações da fila.
 
-Os testes da fila precisam de um Redis acessível; se não houver nenhum, são pulados em vez de
-falhar. O `test_logging.py` valida que os logs são JSON e contêm os campos estruturados de
-requisição, sem depender do Redis.
+Os testes de integração se conectam dinamicamente ao Redis quando disponível; se o banco estiver indisponível, os testes dependentes são ignorados graciosamente.
 
 Com o stack do Docker no ar:
 
@@ -558,10 +553,9 @@ python -m pytest -v
 Resultado real da validação final:
 
 ```text
-collected 22 items
-============================== 22 passed in 0.50s ==============================
+collected 42 items
+============================== 42 passed in 0.97s ==============================
 ```
 
-O teste concorrente de exclusividade também foi repetido 10 vezes, sempre entregando o ticket
-para apenas um técnico.
+O teste concorrente de exclusividade atômica também foi repetido sob estresse em múltiplos threads e clientes assíncronos, garantindo 100% de isolamento e zero duplicação de tickets.
 
