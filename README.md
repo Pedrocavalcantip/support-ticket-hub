@@ -1,5 +1,7 @@
 # support-ticket-hub
 
+> **Entrega 3 — Interface Gráfica e Concorrência** | Sistemas Distribuídos — CIn UFPE
+
 Sistema distribuído de fila de chamados de suporte técnico.
 
 ## Enunciado
@@ -17,8 +19,10 @@ Redis / RabbitMQ ou equivalente)
 - **FastAPI**: servidor da aplicação e endpoints HTTP.
 - **Redis**: armazenamento da fila de chamados.
 - **Docker Compose**: execução dos serviços.
-- **Frontend Web opcional**: HTML, CSS e JavaScript puro, mantido como apoio visual. A
-  demonstração oficial da Entrega 2 é feita pelo terminal.
+- **Frontend Web em HTML, CSS e JavaScript puro**: na Entrega 3, a interface gráfica é o meio
+  principal de interação com o sistema. Duas telas dedicadas — `usuario.html` e `tecnico.html`
+  — substituem os comandos de terminal como canal de demonstração oficial, com push em tempo
+  real via SSE e contadores de status atualizados automaticamente.
 
 ## Justificativa tecnológica
 
@@ -325,6 +329,13 @@ Abra uma terceira aba acessando o portal do cliente em http://localhost:3000/usu
 
 Clique no botão "Pegar Próximo Chamado" nas duas abas de técnicos exatamente ao mesmo tempo.
 
+**Resultado esperado (passo 5):** O Redis decide atomicamente qual dos dois técnicos recebe o chamado — não importa qual, pois o `LPOP` e o `HSET status=IN_PROGRESS` são executados dentro de um único script Lua, sem nenhuma janela de tempo entre eles. O que você verá nas telas:
+
+- **Aba vencedora**: o chamado aparece imediatamente na seção "Chamados em Atendimento", com o ID do técnico correto e o botão "Fechar Chamado" disponível.
+- **Aba que perdeu**: exibe a mensagem **"Nenhum chamado pendente na fila."** — prova de que o Redis já havia entregado o único ticket existente para o outro técnico antes de processar esta requisição.
+- **Ambas as abas**: os contadores de *Pendentes* e *Em Atendimento* no topo da tela se atualizam automaticamente via SSE, sem qualquer reload de página, confirmando que o estado da fila foi propagado para todos os clientes conectados em tempo real.
+
+Essa demonstração visual é o equivalente gráfico do teste automático `test_dois_tecnicos_nao_recebem_o_mesmo_ticket` que usa `Barrier + ThreadPoolExecutor` para forçar a disputa simultânea.
 
 ## Demonstração visual 
 
