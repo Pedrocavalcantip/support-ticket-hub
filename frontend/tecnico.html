@@ -526,9 +526,22 @@
       return ticket.tecnico || ticket.tecnico_responsavel || "-";
     }
 
+    let _dismissTimer = null;
+
     function setMessage(element, text, type = "") {
       element.textContent = text;
       element.className = type ? `message ${type}` : "message";
+
+      // Erros somem automaticamente após 4 s
+      if (_dismissTimer) clearTimeout(_dismissTimer);
+      if (type === "error") {
+        _dismissTimer = setTimeout(() => {
+          if (element.classList.contains("error")) {
+            element.textContent = "";
+            element.className = "message";
+          }
+        }, 4000);
+      }
     }
 
     async function apiRequest(path, options = {}) {
@@ -755,7 +768,11 @@
         setMessage(elements.tecnicoMessage, `Chamado ${shortId(getTicketId(ticket))} atribuido ao tecnico.`, "success");
         await carregarFila();
       } catch (error) {
-        setMessage(elements.tecnicoMessage, error.message, "error");
+        // 404 = fila vazia → mensagem amigável
+        const msg = error.message.includes("pendente") || error.message.includes("404")
+          ? "Nenhum chamado pendente na fila."
+          : error.message;
+        setMessage(elements.tecnicoMessage, msg, "error");
       } finally {
         elements.pegarTicket.disabled = false;
       }
