@@ -787,8 +787,15 @@
         setMessage(elements.tecnicoMessage, `Chamado ${shortId(ticketId)} fechado com sucesso.`, "success");
         await carregarFila();
       } catch (error) {
-        fecharButton.disabled = false;
-        setMessage(elements.tecnicoMessage, error.message, "error");
+        // NOVA LÓGICA: Se o erro for de chamado inexistente, forçamos a limpeza da tela.
+        if (error.message.includes("inexistente") || error.message.includes("nao esta em atendimento")) {
+          removerChamadoEmAtendimento(ticketId);
+          setMessage(elements.tecnicoMessage, `Chamado fantasma limpo da tela (já não existia no servidor).`, "success");
+          await carregarFila();
+        } else {
+          fecharButton.disabled = false;
+          setMessage(elements.tecnicoMessage, error.message, "error");
+        }
       }
     }
 

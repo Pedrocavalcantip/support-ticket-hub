@@ -287,34 +287,46 @@ Resposta real (`200 OK`):
 {"ticket_id":"c9a37990-2f47-4e54-ba45-18f607db921b","status":"CLOSED"}
 ```
 
-## Frontend opcional
+## Como abrir as interfaces
 
-As telas ficam na pasta `frontend/` e são HTML, CSS e JavaScript puro, sem framework e sem
-etapa de build. Elas não são necessárias para avaliar a Entrega 2. Com o backend no ar, basta
-abrir `frontend/index.html` no navegador. Se o
-navegador travar algo por estar abrindo via `file://`, sirva a pasta como site estático:
+Na Entrega 3, a **interface gráfica é o meio principal de interação** com o sistema. Desenvolvemos duas interfaces web distintas e separadas para o gerenciamento de chamados:
+
+- **`usuario.html`**: Destinada ao perfil do Usuário para abrir novos chamados e acompanhar o andamento da fila ao vivo.
+- **`tecnico.html`**: Destinada ao perfil do Técnico para visualizar os chamados abertos na fila, capturar o próximo chamado pendente e fechar os chamados que estão em atendimento.
+
+Para rodar e visualizar as interfaces locais no seu navegador, sirva a pasta `frontend` como um site estático executando o comando abaixo no terminal:
 
 ```bash
-cd frontend
-python -m http.server 3000
+cd frontend && python -m http.server 3000
 ```
+Após iniciar o servidor estático, acesse as URLs correspondentes em abas separadas do navegador:
 
-e acesse `http://localhost:3000`.
+Portal do Cliente: http://localhost:3000/usuario.html
 
-São três arquivos:
+Painel do Técnico: http://localhost:3000/tecnico.html
 
-- **`index.html`**: página única com as duas áreas (usuário e técnico) juntas, boa pra testar o
-  fluxo inteiro.
-- **`usuario.html`**: só a parte do usuário, que abre chamado.
-- **`tecnico.html`**: só a parte do técnico, que pega e fecha chamado e acompanha a fila.
+## Push em tempo real (SSE)
+O sistema utiliza a tecnologia Server-Sent Events (SSE) para estabelecer uma conexão contínua entre o servidor e os clientes conectados:
 
-Toda a comunicação é por HTTP/JSON com a API em `http://127.0.0.1:8000` (o backend libera CORS,
-por isso as telas funcionam até abrindo o arquivo direto). A fila de chamados abertos se atualiza
-sozinha a cada 3 segundos (um `GET /tickets` em loop). Os chamados que o técnico está atendendo
-ficam salvos no `localStorage` do navegador, então recarregar a página não perde o que estava em
-atendimento naquela aba — mas a fonte da verdade é sempre o Redis, no backend.
+Atualização Automatizada: Cada vez que um ticket é criado por um usuário, atribuído a um profissional ou encerrado, o servidor FastAPI empurra automaticamente um evento de atualização para todas as interfaces web abertas simultaneamente.
 
-## Demonstração visual opcional
+Indicador de Conexão: O indicador visual verde posicionado ao lado da fila de chamados confirma em tempo real que a comunicação SSE com o backend está ativa e operacional.
+
+Dashboard de Indicadores: Na tela do técnico, os contadores numéricos de chamados Pendentes, Em Atendimento e Encerrados são atualizados de forma instantânea e transparente, eliminando qualquer necessidade de recarregar a página manualmente (zero polling).
+
+## Simulando dois técnicos disputando o mesmo ticket
+Para testar visualmente o mecanismo de concorrência atômica e a garantia de exclusividade implementada através de scripts Lua no Redis, siga o passo a passo de simulação abaixo:
+
+Abra duas abas distintas do seu navegador, posicionando-as lado a lado, ambas acessando a interface do técnico em http://localhost:3000/tecnico.html.
+
+Na Aba 1, insira no campo de identificação o ID **tech_01**. Na Aba 2, preencha o campo com o ID **tech_02**.
+
+Abra uma terceira aba acessando o portal do cliente em http://localhost:3000/usuario.html e crie um novo chamado de suporte. Graças ao Push via SSE, o chamado aparecerá imediatamente nas duas abas abertas dos técnicos.
+
+Clique no botão "Pegar Próximo Chamado" nas duas abas de técnicos exatamente ao mesmo tempo.
+
+
+## Demonstração visual 
 
 Os prints abaixo são complementares à demonstração de terminal e foram tirados com backend e
 Redis no Docker e o frontend servido localmente.
@@ -363,21 +375,21 @@ support-ticket-hub/
 ├── backend/              # API FastAPI + fila no Redis
 │   ├── app/
 │   │   ├── main.py       # sobe o servidor e registra as rotas
-│   │   ├── api/          # rotas HTTP (tickets)
+│   │   ├── api/          # rotas HTTP (tickets.py e o novo events.py para SSE)
 │   │   ├── schemas/      # validação de entrada/saída (Pydantic)
 │   │   ├── services/     # camada entre as rotas e a fila
 │   │   ├── queue/        # FilaTickets, implementação em cima do Redis
-│   │   └── core/         # configuração (host/porta do Redis)
-│   ├── tests/
+│   │   └── core/         # configuração do sistema e broadcaster.py (mecanismo SSE)
+│   ├── tests/            # testes automatizados da aplicação
 │   ├── Dockerfile
 │   └── requirements.txt
-├── frontend/             # telas HTML do usuário e do técnico
+├── frontend/             # interfaces gráficas em HTML, CSS e JS puro
 ├── docs/
-│   ├── img/              # prints das telas usados neste README
-│   ├── Contrato.md       # protocolo (também descrito aqui no README)
-│   └── Arquitetura.md    # arquitetura (também descrita aqui no README)
+│   ├── img/              # prints das telas do sistema
+│   ├── Contrato.md       # protocolo HTTP e especificações de eventos SSE
+│   └── Arquitetura.md    # documentação técnica das decisões estruturais
 ├── docker-compose.yml
-└── README.md
+└── README.md             # Instruções de uso e documentação do projeto
 ```
 
 ## Validações básicas
