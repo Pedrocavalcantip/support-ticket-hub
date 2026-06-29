@@ -381,6 +381,7 @@
       abrirTicketButton.disabled = true;
       usuarioMessage.textContent = "Abrindo chamado...";
       usuarioMessage.className   = "message";
+      if (window._dismissTimer) clearTimeout(window._dismissTimer);
 
       try {
         const response = await fetch(`${API_BASE_URL}/tickets`, {
@@ -403,6 +404,13 @@
       } catch (error) {
         usuarioMessage.textContent = error.message;
         usuarioMessage.className   = "message error";
+        // Erro some após 4 s
+        window._dismissTimer = setTimeout(() => {
+          if (usuarioMessage.classList.contains("error")) {
+            usuarioMessage.textContent = "";
+            usuarioMessage.className   = "message";
+          }
+        }, 4000);
       } finally {
         abrirTicketButton.disabled = false;
       }
