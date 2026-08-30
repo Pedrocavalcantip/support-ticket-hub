@@ -8,3 +8,9 @@ dist/
 build/
 .next/
 .vscode/
+.DS_Store
+*.log
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
